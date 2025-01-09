@@ -1,5 +1,13 @@
 # Quick GitHub Command Reminders
 
+## Cloning the Repository
+
+To clone the repository, write this in the VS code terminal:
+
+```bash
+git clone https://github.com/SarahR1411/ELP.git
+```
+
 ## 1. Pulling Changes
 
 Before starting to work on your local repository, make sure that you have the latest changes from the remote repository using:
