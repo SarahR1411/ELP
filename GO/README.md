@@ -1,67 +1,73 @@
-### Project README: **Image Processing Toolkit**
+### **README: Photo Restoration Project**
 
 ---
 
 #### **Overview**
-This project focuses on building a toolkit for basic image processing tasks, such as noise reduction, color correction, resolution enhancement, and scratch/damage repair. These tools aim to improve image quality and fix common visual defects with simple and practical approaches.
+This project restores old or damaged photographs using a combination of noise reduction, scratch/damage repair, and color correction techniques. Implemented in Go, the program processes an input image to reduce noise, repair scratches or stains, and enhance its overall visual quality.
 
 ---
 
-#### **Features to Implement**
-1. **Noise Reduction:**
-   - Implement a box filter (blur) by averaging RGB values of neighboring pixels.
-   - Alternatively, use Gaussian filtering for better smoothing and noise reduction.
+#### **How It Works**
+1. **Load and Save Images:**
+   - The program reads images from the specified file path and saves processed images in JPEG format.
 
-2. **Color Correction:**
-   - Methods to include:
-     - Histogram equalization.
-     - White balance adjustment.
-     - Channel-wise intensity scaling.
+2. **Noise Reduction:**
+   - Uses Gaussian-like filtering to reduce noise by averaging neighboring pixel colors. This smooths the image while retaining key features.
 
-3. **Resolution Enhancement:**
-   - Basic upscaling methods:
-     - Nearest-neighbor interpolation.
-     - Bilinear interpolation.
-   - Note: These methods are simple but produce subpar results compared to advanced machine learning-based techniques.
+3. **Scratch and Damage Repair:**
+   - Detects high-contrast, bright pixels (potential scratches or stains) by thresholding.
+   - Repairs the damaged areas by replacing them with the median color of surrounding pixels, effectively blending them into the background.
 
-4. **Scratch/Damage Repair:**
-   - Detect bright pixels with high contrast to their surroundings using edge detection algorithms.
-   - Replace damaged pixels with the average values of neighboring pixels for seamless repair.
+4. **Color Correction:**
+   - Implements **Histogram Equalization** to enhance image contrast. It redistributes pixel intensities evenly across the image, improving brightness and visual quality.
 
 ---
 
-#### **Development Plan**
-1. **Priority Tasks:**
-   - **Noise Reduction:** Start with implementing Gaussian filtering for smoother and cleaner images.
-   - **Scratch/Damage Repair:** Develop algorithms to detect and repair scratches or bright lines.
+#### **Code Details**
+1. **Key Functions:**
+   - `loadImage(imagePath string)`: Reads an image from a file.
+   - `saveImage(img image.Image, outputPath string)`: Writes an image to a file in JPEG format.
+   - `detectWhiteLinesAndStains(img image.Image)`: Identifies potential scratches or stains using brightness thresholds.
+   - `applySmoothing(img image.Image)`: Reduces noise and smooths the image using median filtering.
+   - `HistEqual(img image.Image)`: Performs histogram equalization to adjust image contrast.
+   - `getMedianColor(img image.Image, x, y int)`: Calculates the median color of surrounding pixels for restoration.
 
-2. **Secondary Tasks:**
-   - **Color Correction:** Focus on enhancing visual realism and naturalness by correcting color balance.
-
-3. **Final Task:**
-   - **Resolution Enhancement:** Add basic upscaling methods for increasing image size with minimal complexity.
-
----
-
-#### **Progress So Far**
-- **Core Functions:**
-  - `LoadImage` and `SaveImage` functions for reading and saving images.
-  - `ScratchDetection` function for identifying scratches and bright lines.
-
-- **Noise Reduction:**
-  - `ApplySmoothing`: Implements Gaussian filtering for reducing noise.
-  - `GetMedianColor`: Computes the average color of surrounding pixels, used for smoothing.
+2. **Workflow:**
+   - **Step 1:** The image is loaded.
+   - **Step 2:** Scratches and stains are detected using a brightness threshold.
+   - **Step 3:** The image undergoes histogram equalization for contrast improvement.
+   - **Step 4:** Noise reduction and smoothing are applied to refine the final image.
+   - **Step 5:** The restored image is saved.
 
 ---
 
-#### **Next Steps**
-1. Fine-tune the scratch detection and repair process.
-2. Complete the noise reduction module by adding box filtering.
-3. Implement the color correction methods (histogram equalization, white balance).
-4. Develop basic resolution enhancement methods.
+#### **Filters Explanation**
+1. **Noise Reduction (Gaussian-like Smoothing):**
+   - Replaces each pixel with the average color of its neighbors. This reduces noise by blending pixel values, resulting in a smoother appearance.
+
+2. **Scratch Repair (Median Filtering):**
+   - Bright pixels, indicative of damage, are replaced with the median color of surrounding pixels. This method preserves edges and avoids excessive blurring.
+
+3. **Color Correction (Histogram Equalization):**
+   - Balances the intensity distribution of pixels across the image. Dark areas become brighter, and contrast improves, making the image more visually appealing.
 
 ---
 
-#### **Notes**
-- This project avoids machine learning-based methods to keep implementation simple and focus on classic image processing techniques.
-- The workflow prioritizes repair and enhancement for practical and visually noticeable improvements.
+#### **Usage**
+1. Set the image path:  
+   Update `imagePath` with the file path to your input image.
+   
+2. Run the program:  
+   Execute the `main` function to process the image.
+
+3. Output:  
+   The restored image will be saved as `restored_photo.jpg`.
+
+---
+
+#### **Future Improvements**
+- Add advanced noise reduction techniques (e.g., bilateral filtering).
+- Incorporate machine learning for more robust scratch detection and restoration.
+- Improve resolution enhancement using modern upscaling methods. 
+
+Enjoy restoring your photos! 📸
