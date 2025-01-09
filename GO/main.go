@@ -89,11 +89,60 @@ func restoreImage(img image.Image, mask [][]bool) image.Image {
 		}
 	}
 	return newImg
-}
-We'll use Histogram equalization for color correction */
-func HistEqual(img image.Image) {
+}*/
 
+// We'll use Histogram equalization for color correction 
+
+func HistEqual(img image.Image) *image.RGBA {
+    bounds := img.Bounds()
+    width, height := bounds.Max.X, bounds.Max.Y
+    newImg := image.NewRGBA(bounds)
+
+    // Create separate histograms for each channel
+    histR, histG, histB := make([]int, 256), make([]int, 256), make([]int, 256)
+
+    // Calculate the histogram for each channel
+    for y := 0; y < height; y++ {
+        for x := 0; x < width; x++ {
+            c := img.At(x, y)
+            r, g, b, _ := c.RGBA()
+            histR[r>>8]++
+            histG[g>>8]++
+            histB[b>>8]++
+        }
+    }
+
+    // Calculate the cumulative distribution function for each channel
+    cdfR := computeCDF(histR)
+    cdfG := computeCDF(histG)
+    cdfB := computeCDF(histB)
+
+    // Apply histogram equalization to each pixel
+    for y := 0; y < height; y++ {
+        for x := 0; x < width; x++ {
+            r, g, b, a := img.At(x, y).RGBA()
+            newR := uint8((cdfR[r>>8] * 255) / cdfR[len(cdfR)-1])
+            newG := uint8((cdfG[g>>8] * 255) / cdfG[len(cdfG)-1])
+            newB := uint8((cdfB[b>>8] * 255) / cdfB[len(cdfB)-1])
+            newImg.SetRGBA(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
+        }
+    }
+
+    return newImg
 }
+
+
+// Function to calculate the cumulative distribution function
+
+func computeCDF(hist []int) []int {
+	cdf := make([]int, len(hist))
+	cdf[0] = hist[0]
+	for i := 1; i < len(hist); i++ {
+		cdf[i] = cdf[i-1] + hist[i]
+	}
+	return cdf
+}
+
 
 // Get the median color of surrounding pixels for in painting
 func getMedianColor(img image.Image, x, y int) color.Color {
@@ -161,7 +210,7 @@ func main() {
 	mask := detectWhiteLinesAndStains(img)
 
 	// Restore the image (remove white lines and stains)
-	restoredImg := HistEqual(somtheing, somethign) //Once function wrote update it here !!!
+	restoredImg := HistEqual(img) //
 
 	// Apply smoothing to reduce blur
 	restoredImg = applySmoothing(restoredImg)
