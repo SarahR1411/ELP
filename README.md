@@ -40,7 +40,7 @@ git add .
 Once you've added your changes, you need to commit them. Make sure to add a short and clear commit message to explain what you did. For example:
 
 ```bash
-git commit -m "Added new go file for ..."
+git commit -a -m "Added new go file for ..."
 ```
 
 ## 4. Pushing Changes
