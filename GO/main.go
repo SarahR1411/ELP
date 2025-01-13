@@ -94,46 +94,49 @@ func restoreImage(img image.Image, mask [][]bool) image.Image {
 // We'll use Histogram equalization for color correction 
 
 func HistEqual(img image.Image) *image.RGBA {
-    bounds := img.Bounds()
-    width, height := bounds.Max.X, bounds.Max.Y
-    newImg := image.NewRGBA(bounds)
+	bounds := img.Bounds()
+	width, height := bounds.Max.X, bounds.Max.Y
+	newImg := image.NewRGBA(bounds)
 
-    // Create separate histograms for each channel
-    histR, histG, histB := make([]int, 256), make([]int, 256), make([]int, 256)
+	// Create histograms for each channel
+	histR, histG, histB := make([]int, 256), make([]int, 256), make([]int, 256)
 
-    // Calculate the histogram for each channel
-    for y := 0; y < height; y++ {
-        for x := 0; x < width; x++ {
-            c := img.At(x, y)
-            r, g, b, _ := c.RGBA()
-            histR[r>>8]++
-            histG[g>>8]++
-            histB[b>>8]++
-        }
-    }
+	// Calculate the histogram for each channel
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			c := img.At(x, y)
+			r, g, b, _ := c.RGBA()
+			histR[r>>8]++
+			histG[g>>8]++
+			histB[b>>8]++
+		}
+	}
 
-    // Calculate the cumulative distribution function for each channel
-    cdfR := computeCDF(histR)
-    cdfG := computeCDF(histG)
-    cdfB := computeCDF(histB)
+	// Calculate the cumulative distribution function (CDF)
+	cdfR := computeCDF(histR)
+	cdfG := computeCDF(histG)
+	cdfB := computeCDF(histB)
 
-    // Apply histogram equalization to each pixel
-    for y := 0; y < height; y++ {
-        for x := 0; x < width; x++ {
-            r, g, b, a := img.At(x, y).RGBA()
-            newR := uint8((cdfR[r>>8] * 255) / cdfR[len(cdfR)-1])
-            newG := uint8((cdfG[g>>8] * 255) / cdfG[len(cdfG)-1])
-            newB := uint8((cdfB[b>>8] * 255) / cdfB[len(cdfB)-1])
-            newImg.SetRGBA(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
-        }
-    }
+	// Find min and max CDF values for normalization
+	minR, maxR := findMinMax(cdfR)
+	minG, maxG := findMinMax(cdfG)
+	minB, maxB := findMinMax(cdfB)
 
-    return newImg
+	// Apply histogram equalization to each pixel
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			r, g, b, a := img.At(x, y).RGBA()
+			newR := uint8(((cdfR[r>>8] - minR) * 255) / (maxR - minR))
+			newG := uint8(((cdfG[g>>8] - minG) * 255) / (maxG - minG))
+			newB := uint8(((cdfB[b>>8] - minB) * 255) / (maxB - minB))
+			newImg.SetRGBA(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
+		}
+	}
+
+	return newImg
 }
 
-
-// Function to calculate the cumulative distribution function
-
+// computeCDF calculates the cumulative distribution function from a histogram
 func computeCDF(hist []int) []int {
 	cdf := make([]int, len(hist))
 	cdf[0] = hist[0]
@@ -141,6 +144,21 @@ func computeCDF(hist []int) []int {
 		cdf[i] = cdf[i-1] + hist[i]
 	}
 	return cdf
+}
+
+// findMinMax finds the minimum and maximum non-zero values in a CDF
+//Helps avoid zero division error and improves contrast
+func findMinMax(cdf []int) (min, max int) {
+	min, max = -1, -1
+	for _, value := range cdf {
+		if value > 0 && min == -1 {
+			min = value
+		}
+		if value > 0 {
+			max = value
+		}
+	}
+	return min, max
 }
 
 
@@ -209,11 +227,15 @@ func main() {
 	// Detect white lines and stains (create a mask)
 	mask := detectWhiteLinesAndStains(img)
 
-	// Restore the image (remove white lines and stains)
-	restoredImg := HistEqual(img) //
+	// Apply scratch removal filter
+
+	img = applyScratchRemoval(mask) 
+
+	// Apply color correction filter
+	color_corrected := HistEqual(img)
 
 	// Apply smoothing to reduce blur
-	restoredImg = applySmoothing(restoredImg)
+	restoredImg = applySmoothing(color_corrected)
 
 	// Save the restored image
 	err = saveImage(restoredImg, restoredImagePath)
