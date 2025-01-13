@@ -11,6 +11,7 @@ import (
 	"log"
 	"os"
 	"sort"
+	"time"
 )
 
 // Read an image from a file
@@ -224,6 +225,8 @@ func main() {
 		log.Fatalf("Error loading image: %v\n", err)
 	}
 
+	start := time.Now()
+
 	// Detect white lines and stains (create a mask)
 	mask := detectWhiteLinesAndStains(img)
 
@@ -237,6 +240,8 @@ func main() {
 	// Apply smoothing to reduce blur
 	restoredImg = applySmoothing(color_corrected)
 
+	elapsed := time.Since(start)
+
 	// Save the restored image
 	err = saveImage(restoredImg, restoredImagePath)
 	if err != nil {
@@ -244,4 +249,5 @@ func main() {
 	}
 
 	fmt.Printf("Restored image saved to: %s\n", restoredImagePath)
+	fmt.Printf("Image restoration took: %v\n", elapsed)
 }
