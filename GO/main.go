@@ -46,54 +46,47 @@ func saveImage(img image.Image, outputPath string) error {
 }
 
 // Detect scratches and stains using thresholding
-func detectWhiteLinesAndStains(img image.Image) [][]bool {
+func CreateMask(img image.Image, outputPath string) error {
+	// Get the dimensions of the image
 	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	mask := make([][]bool, height)
+	width, height := bounds.Dx(), bounds.Dy()
 
+	// Create a new image for the mask
+	mask := image.NewRGBA(image.Rect(0, 0, width, height))
+
+	// Process each pixel to create the mask
 	for y := 0; y < height; y++ {
-		mask[y] = make([]bool, width)
 		for x := 0; x < width; x++ {
-			c := img.At(x, y)
-			r, g, b, _ := c.RGBA()
-			// Convert RGBA to grayscale (average of RGB values)
-			gray := uint8((r + g + b) / 3)
+			originalPixel := img.At(x, y)
+			r, g, b, _ := originalPixel.RGBA()
 
-			// Detect high contrast areas that could represent folds or stains
-			if gray > 200 { // These are likely fold lines or light stains
-				mask[y][x] = true
+			// Convert pixel values to 8-bit range
+			r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
+
+			// Check if the sum of RGB values is greater than 0
+			if r8+g8+b8 > 0 {
+				mask.Set(x, y, color.RGBA{0, 0, 0, 255}) // Set to black
+			} else {
+				mask.Set(x, y, color.RGBA{255, 255, 255, 255}) // Set to white
 			}
 		}
 	}
-	return mask
+	// Save the mask image
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return err
+	}
+	defer outputFile.Close()
+
+	if err := jpeg.Encode(outputFile, mask, nil); err != nil {
+		return err
+	}
+
+	log.Printf("Mask image saved as %s\n", outputPath)
+	return nil
 }
 
-// Inpaint the detected areas using surrounding pixels' colors
-/*
-func restoreImage(img image.Image, mask [][]bool) image.Image {
-	bounds := img.Bounds()
-	width, height := bounds.Max.X, bounds.Max.Y
-	newImg := image.NewRGBA(bounds)
-
-	// Iterate over every pixel in the image
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			// If it's part of the scratch or stain (based on the mask), apply restoration
-			if mask[y][x] {
-				// Apply median filter or other methods for restoration
-				restoredColor := getMedianColor(img, x, y)
-				newImg.Set(x, y, restoredColor)
-			} else {
-				// If not part of a scratch, keep the original pixel
-				newImg.Set(x, y, img.At(x, y))
-			}
-		}
-	}
-	return newImg
-}*/
-
-// We'll use Histogram equalization for color correction 
-
+// We'll use Histogram equalization for color correction
 func HistEqual(img image.Image) *image.RGBA {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -148,7 +141,7 @@ func computeCDF(hist []int) []int {
 }
 
 // findMinMax finds the minimum and maximum non-zero values in a CDF
-//Helps avoid zero division error and improves contrast
+// Helps avoid zero division error and improves contrast
 func findMinMax(cdf []int) (min, max int) {
 	min, max = -1, -1
 	for _, value := range cdf {
@@ -161,7 +154,6 @@ func findMinMax(cdf []int) (min, max int) {
 	}
 	return min, max
 }
-
 
 // Get the median color of surrounding pixels for in painting
 func getMedianColor(img image.Image, x, y int) color.Color {
@@ -214,12 +206,40 @@ func applySmoothing(img image.Image) image.Image {
 	return newImg
 }
 
+/*
+// Inpaint colors the white lines and stains in an image with the median color of surrounding pixels.
+func inpaint(img image.Image, mask [][]bool) *image.RGBA {
+    bounds := img.Bounds()
+    output := image.NewRGBA(bounds)
+
+    // Copy the original image to the output image
+    for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
+        for x := bounds.Min.X; x < bounds.Max.X; x++ {
+            output.Set(x, y, img.At(x, y))
+        }
+    }
+
+    // Replace white pixels with the median color of their neighbors
+    for y, row := range mask {
+        for x, isWhite := range row {
+            if isWhite {
+                medianColor := getMedianColor(img, x, y)
+                output.Set(x, y, medianColor)
+            }
+        }
+    }
+
+    return output
+}
+*/
+
+// main is the entry point of the application. It performs the following steps:
 func main() {
 	imagePath := "/Users/emmafarigoule/Desktop/old_photo.jpg"
 
 	restoredImagePath := "restored_photo.jpg"
 
-	// Load the image
+	// 1. Load the image
 	img, err := loadImage(imagePath)
 	if err != nil {
 		log.Fatalf("Error loading image: %v\n", err)
@@ -227,22 +247,27 @@ func main() {
 
 	start := time.Now()
 
-	// Detect white lines and stains (create a mask)
-	mask := detectWhiteLinesAndStains(img)
+	// 2. Detect white lines and stains (create a mask)
+	// Call the CreateMask function
+	outputPath := "new_photo_mask.jpeg"
 
-	// Apply scratch removal filter
+	err = CreateMask(img, outputPath)
+	if err != nil {
+		log.Fatalf("Error creating mask: %v", err)
+	}
 
-	img = applyScratchRemoval(mask) 
+	// 3. Apply scratch removal filter aka inpaint
+	//img = inpaint(mask)
 
-	// Apply color correction filter
+	// 4. Apply color correction filter
 	color_corrected := HistEqual(img)
 
-	// Apply smoothing to reduce blur
-	restoredImg = applySmoothing(color_corrected)
+	// 5. Apply smoothing to reduce blur
+	restoredImg := applySmoothing(color_corrected)
 
 	elapsed := time.Since(start)
 
-	// Save the restored image
+	// 6. Save the restored image
 	err = saveImage(restoredImg, restoredImagePath)
 	if err != nil {
 		log.Fatalf("Error saving image: %v\n", err)
