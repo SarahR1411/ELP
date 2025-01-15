@@ -3,6 +3,7 @@ package restoration
 import (
 	"image"
 	"image/color"
+	"sync"
 )
 
 // Get the median color of surrounding pixels for in painting
@@ -46,21 +47,39 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 
 
 // Inpaint colors the white lines and stains in an image with the median color of surrounding pixels.
-func InpaintWithEdges(img image.Image, mask [][]float64, edges [][]float64) *image.RGBA {
+func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
 	output := image.NewRGBA(bounds)
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			weight := mask[y][x] // Use feathered mask value
-			if weight > 0 {      // If the mask indicates a damaged area
-				blendedColor := GetBlendedColorWithEdges(img, mask, edges, x, y)
-				output.Set(x, y, blendedColor)
-			} else {
-				output.Set(x, y, img.At(x, y)) // Copy original pixel
+	rowsPerWorker := height / numWorkers
+	var wg sync.WaitGroup
+
+	// Worker function for processing rows
+	processChunk := func(startRow, endRow int) {
+		defer wg.Done()
+		for y := startRow; y < endRow; y++ {
+			for x := 0; x < width; x++ {
+				if mask[y][x] > 0 {
+					output.Set(x, y, GetBlendedColorWithEdges(img, mask, edges, x, y))
+				} else {
+					output.Set(x, y, img.At(x, y))
+				}
 			}
 		}
 	}
 
+	// Launch workers
+	for i := 0; i < numWorkers; i++ {
+		startRow := i * rowsPerWorker
+		endRow := startRow + rowsPerWorker
+		if i == numWorkers-1 {
+			endRow = height
+		}
+		wg.Add(1)
+		go processChunk(startRow, endRow)
+	}
+
+	wg.Wait()
 	return output
 }

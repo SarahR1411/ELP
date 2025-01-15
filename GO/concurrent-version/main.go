@@ -21,28 +21,24 @@ func main() {
 
 	start := time.Now()
 
-	// Create the mask for scratches
-	mask, err := restoration.CreateMask(img, maskImagePath)
+	// Create the mask in chunks
+	mask, err := restoration.CreateMaskByChunks(img, maskImagePath, 4) // 4 workers
 	if err != nil {
 		log.Fatalf("Error creating mask: %v\n", err)
 	}
 
 	// Generate edge mask for enhanced blending
-	edgeMask := restoration.EdgeDetection(img)
+	edgeMask := restoration.EdgeDetectionConcurrent(img)
 
 	// Feather the mask
-	featheredMask := restoration.FeatherMask(mask, 50, edgeMask)
+	featheredMask := restoration.FeatherMaskConcurrent(mask, 40, edgeMask)
 
-	err = restoration.SaveFeatheredMask(featheredMask, "feathered_mask.jpg")
-	if err != nil {
-		log.Fatalf("Error saving feathered mask: %v\n", err)
-	}
 
-	// Apply scratch removal with edges
-	restoredImg := restoration.InpaintWithEdges(img, featheredMask, edgeMask)
+	// Apply scratch removal in chunks
+	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask, 4)
 
-	// Post-process for sharpening
-	finalImg := restoration.PostProcessSharpen(restoredImg)
+	// Post-process for sharpening in chunks
+	finalImg := restoration.PostProcessSharpenByChunks(restoredImg, 4)
 
 	elapsed := time.Since(start)
 

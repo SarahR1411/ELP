@@ -4,6 +4,7 @@ import (
 	"image"
 	"image/color"
 	"math"
+	"sync"
 )
 
 // Apply gaussian blur and sharpening
@@ -20,10 +21,12 @@ func ApplySmoothing(img image.Image) image.Image {
 
 }
 
-func PostProcessSharpen(img image.Image) image.Image {
-    bounds := img.Bounds()
-	sharpenedImage := image.NewRGBA(bounds)
+func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
+	bounds := img.Bounds()
+	width, height := bounds.Dx(), bounds.Dy()
+	output := image.NewRGBA(bounds)
 
+	// Sharpen kernel
 	kernel := [][]float64{
 		{0, -1, 0},
 		{-1, 5, -1},
@@ -31,43 +34,59 @@ func PostProcessSharpen(img image.Image) image.Image {
 	}
 
 	offset := len(kernel) / 2
+	rowsPerWorker := height / numWorkers
+	var wg sync.WaitGroup
 
-	for y := bounds.Min.Y + offset; y < bounds.Max.Y-offset; y++ {
-		for x := bounds.Min.X + offset; x < bounds.Max.X-offset; x++ {
-			var r, g, b float64
-			for ky := -offset; ky <= offset; ky++ {
-				for kx := -offset; kx <= offset; kx++ {
-					nx := x + kx
-					ny := y + ky
-
-					px := img.At(nx, ny)
-					pr, pg, pb, _ := px.RGBA()
-					weight := kernel[ky+offset][kx+offset]
-					r += float64(pr) * weight
-					g += float64(pg) * weight
-					b += float64(pb) * weight
+	// Worker function for processing rows
+	processChunk := func(startRow, endRow int) {
+		defer wg.Done()
+		for y := startRow + offset; y < endRow-offset; y++ {
+			for x := offset; x < width-offset; x++ {
+				var r, g, b float64
+				for ky := -offset; ky <= offset; ky++ {
+					for kx := -offset; kx <= offset; kx++ {
+						nx, ny := x+kx, y+ky
+						px := img.At(nx, ny)
+						pr, pg, pb, _ := px.RGBA()
+						weight := kernel[ky+offset][kx+offset]
+						r += float64(pr) * weight
+						g += float64(pg) * weight
+						b += float64(pb) * weight
+					}
 				}
-			}
 
-			clamp := func(value float64) uint8 {
-				if value < 0 {
-					return 0
-				} else if value > 255*256 {
-					return 255
+				clamp := func(value float64) uint8 {
+					if value < 0 {
+						return 0
+					} else if value > 255*256 {
+						return 255
+					}
+					return uint8(value / 256)
 				}
-				return uint8(value / 256)
-			}
 
-			sharpenedImage.Set(x, y, color.RGBA{
-				R: clamp(r),
-				G: clamp(g),
-				B: clamp(b),
-				A: 255,
-			})
+				output.Set(x, y, color.RGBA{
+					R: clamp(r),
+					G: clamp(g),
+					B: clamp(b),
+					A: 255,
+				})
+			}
 		}
 	}
 
-	return sharpenedImage
+	// Launch workers
+	for i := 0; i < numWorkers; i++ {
+		startRow := i * rowsPerWorker
+		endRow := startRow + rowsPerWorker
+		if i == numWorkers-1 {
+			endRow = height
+		}
+		wg.Add(1)
+		go processChunk(startRow, endRow)
+	}
+
+	wg.Wait()
+	return output
 }
 
 // Gaussian blurr for smoothing and then image sharpening 
