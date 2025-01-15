@@ -72,7 +72,12 @@ func main() {
 	edgeMask := restoration.EdgeDetection(img)
 
 	// Feather the mask
-	featheredMask := restoration.FeatherMask(mask, 5, edgeMask)
+	featheredMask := restoration.FeatherMask(mask, 50, edgeMask)
+
+	err = restoration.SaveFeatheredMask(featheredMask, "feathered_mask.jpg")
+	if err != nil {
+		log.Fatalf("Error saving feathered mask: %v\n", err)
+	}
 
 	// Apply scratch removal with edges
 	restoredImg := restoration.InpaintWithEdges(img, featheredMask, edgeMask)

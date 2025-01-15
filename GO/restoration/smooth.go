@@ -22,52 +22,52 @@ func ApplySmoothing(img image.Image) image.Image {
 
 func PostProcessSharpen(img image.Image) image.Image {
     bounds := img.Bounds()
-    sharpenedImage := image.NewRGBA(bounds)
+	sharpenedImage := image.NewRGBA(bounds)
 
-    kernel := [][]float64{
-        {0, -1, 0},
-        {-1, 5, -1},
-        {0, -1, 0},
-    }
+	kernel := [][]float64{
+		{0, -1, 0},
+		{-1, 5, -1},
+		{0, -1, 0},
+	}
 
-    offset := len(kernel) / 2
+	offset := len(kernel) / 2
 
-    for y := bounds.Min.Y + offset; y < bounds.Max.Y-offset; y++ {
-        for x := bounds.Min.X + offset; x < bounds.Max.X-offset; x++ {
-            var r, g, b float64
-            for ky := -offset; ky <= offset; ky++ {
-                for kx := -offset; kx <= offset; kx++ {
-                    nx := x + kx
-                    ny := y + ky
+	for y := bounds.Min.Y + offset; y < bounds.Max.Y-offset; y++ {
+		for x := bounds.Min.X + offset; x < bounds.Max.X-offset; x++ {
+			var r, g, b float64
+			for ky := -offset; ky <= offset; ky++ {
+				for kx := -offset; kx <= offset; kx++ {
+					nx := x + kx
+					ny := y + ky
 
-                    px := img.At(nx, ny)
-                    pr, pg, pb, _ := px.RGBA()
-                    weight := kernel[ky+offset][kx+offset]
-                    r += float64(pr) * weight
-                    g += float64(pg) * weight
-                    b += float64(pb) * weight
-                }
-            }
+					px := img.At(nx, ny)
+					pr, pg, pb, _ := px.RGBA()
+					weight := kernel[ky+offset][kx+offset]
+					r += float64(pr) * weight
+					g += float64(pg) * weight
+					b += float64(pb) * weight
+				}
+			}
 
-            clamp := func(value float64) uint8 {
-                if value < 0 {
-                    return 0
-                } else if value > 255*256 {
-                    return 255
-                }
-                return uint8(value / 256)
-            }
+			clamp := func(value float64) uint8 {
+				if value < 0 {
+					return 0
+				} else if value > 255*256 {
+					return 255
+				}
+				return uint8(value / 256)
+			}
 
-            sharpenedImage.Set(x, y, color.RGBA{
-                R: clamp(r),
-                G: clamp(g),
-                B: clamp(b),
-                A: 255,
-            })
-        }
-    }
+			sharpenedImage.Set(x, y, color.RGBA{
+				R: clamp(r),
+				G: clamp(g),
+				B: clamp(b),
+				A: 255,
+			})
+		}
+	}
 
-    return sharpenedImage
+	return sharpenedImage
 }
 
 // Gaussian blurr for smoothing and then image sharpening 

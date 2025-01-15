@@ -19,7 +19,7 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 			if nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny][nx] < 1.0 {
 				c := img.At(nx, ny)
 				r, g, b, _ := c.RGBA()
-				edgeWeight := 1.0 - edges[ny][nx] // Reduce blending in strong edge areas
+				edgeWeight := 1.0 - edges[ny][nx]
 				distance := float64(dx*dx + dy*dy)
 				weight := edgeWeight / (1.0 + distance)
 				sumR += float64(r) * weight
@@ -31,7 +31,6 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 	}
 
 	if weightSum == 0 {
-		// Return the original pixel if no valid neighbors
 		original := img.At(x, y)
 		r, g, b, _ := original.RGBA()
 		return color.RGBA{R: uint8(r / 256), G: uint8(g / 256), B: uint8(b / 256), A: 255}
@@ -44,6 +43,7 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 		A: 255,
 	}
 }
+
 
 // Inpaint colors the white lines and stains in an image with the median color of surrounding pixels.
 func InpaintWithEdges(img image.Image, mask [][]float64, edges [][]float64) *image.RGBA {

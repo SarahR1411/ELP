@@ -62,31 +62,49 @@ func CreateMask(img image.Image, outputPath string) ([][]float64, error) {
 
 func FeatherMask(mask [][]float64, radius int, edgeMask [][]float64) [][]float64 {
     height := len(mask)
-    width := len(mask[0])
-    feathered := make([][]float64, height)
-    for y := range feathered {
-        feathered[y] = make([]float64, width)
-    }
+	width := len(mask[0])
+	feathered := make([][]float64, height)
+	for y := range feathered {
+		feathered[y] = make([]float64, width)
+	}
 
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if mask[y][x] > 0 {
+				feathered[y][x] = 1.0
+				for dy := -radius; dy <= radius; dy++ {
+					for dx := -radius; dx <= radius; dx++ {
+						nx, ny := x+dx, y+dy
+						if nx >= 0 && nx < width && ny >= 0 && ny < height {
+							distance := float64(dx*dx + dy*dy)
+							weight := math.Exp(-distance / float64(radius*radius)) * (1.0 - edgeMask[ny][nx])
+							feathered[ny][nx] = math.Max(feathered[ny][nx], weight)
+						}
+					}
+				}
+			}
+		}
+	}
+	return feathered
+}
+
+func SaveFeatheredMask(feathered [][]float64, outputPath string) error {
+    height := len(feathered)
+    width := len(feathered[0])
+    featheredImg := image.NewGray(image.Rect(0, 0, width, height))
     for y := 0; y < height; y++ {
         for x := 0; x < width; x++ {
-            if mask[y][x] > 0 {
-                feathered[y][x] = 1.0
-                for dy := -radius; dy <= radius; dy++ {
-                    for dx := -radius; dx <= radius; dx++ {
-                        nx, ny := x+dx, y+dy
-                        if nx >= 0 && nx < width && ny >= 0 && ny < height {
-                            distance := float64(dx*dx + dy*dy)
-                            weight := math.Exp(-distance / float64(radius*radius))
-                            // Include edge penalty to preserve details
-                            weight *= 1.0 - edgeMask[ny][nx]
-                            feathered[ny][nx] = math.Max(feathered[ny][nx], weight)
-                        }
-                    }
-                }
-            }
+            intensity := uint8(feathered[y][x] * 255) // Normalize to [0, 255]
+            featheredImg.SetGray(x, y, color.Gray{Y: intensity})
         }
     }
-    return feathered
+    file, err := os.Create(outputPath)
+    if err != nil {
+        return err
+    }
+    defer file.Close()
+    return jpeg.Encode(file, featheredImg, nil)
 }
+
+
 

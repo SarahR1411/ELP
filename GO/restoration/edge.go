@@ -48,10 +48,14 @@ func EdgeDetection(img image.Image) [][]float64 {
 		}
 	}
 
-	// Normalize edges to [0, 1]
+	// Normalize and apply threshold
+	threshold := 0.2 // Do more tests to find good value
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			edges[y][x] /= maxGradient
+			if edges[y][x] < threshold {
+				edges[y][x] = 0.0
+			}
 		}
 	}
 
