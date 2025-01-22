@@ -6,14 +6,21 @@ import (
 	"time"
 	"runtime"
 	"GO/concurrent-version/restoration"
+	"os"
+	"path/filepath"
 )
 
 func main() {
 	numWorkers := runtime.NumCPU()
 	fmt.Printf("Number of CPU cores: %d\n", numWorkers)
-	imagePath := "old_photo.jpeg"
-	maskImagePath := "new_photo_mask.jpeg"
-	restoredImagePath := "restored_photo.jpg"
+	rootDir, _ := os.Getwd() // Current directory is cmd/restore
+	projectDir := filepath.Dir(filepath.Dir(rootDir)) // Move up two levels to concurrent-version
+
+	imagePath := filepath.Join(projectDir, "assets", "old_photo.jpeg")
+	maskImagePath := filepath.Join(projectDir, "assets", "new_photo_mask.jpeg")
+	restoredImagePath := filepath.Join(projectDir, "assets", "restored_photo.jpg")
+
+
 
 	// Load the image
 	img, err := restoration.LoadImage(imagePath)
@@ -25,6 +32,9 @@ func main() {
 
 	// Create the mask in chunks
 	mask, err := restoration.CreateMaskByChunks(img, maskImagePath)
+	if err != nil {
+		log.Fatalf("Error creating mask: %v\n", err)
+	}
 
 	// Generate edge mask for enhanced blending
 	edgeMask := restoration.EdgeDetectionConcurrent(img)

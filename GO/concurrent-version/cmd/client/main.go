@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/binary"
+	"flag"
 	"fmt"
 	"io"
 	"log"
@@ -12,6 +13,14 @@ import (
 const serverAddress = "localhost:8080" // server address
 
 func main() {
+	// Parse the input file path from the command line
+	imagePath := flag.String("file", "", "Path to the image file to send")
+	flag.Parse()
+
+	if *imagePath == "" {
+		log.Fatal("Please provide the path to the image file using the -file flag")
+	}
+
 	// 1. Connect to the server
 	conn, err := net.Dial("tcp", serverAddress)
 	if err != nil {
@@ -20,8 +29,7 @@ func main() {
 	defer conn.Close()
 
 	// 2. Open the image file to send
-	imagePath := "old_photo.jpeg"
-	imageData, err := os.ReadFile(imagePath)
+	imageData, err := os.ReadFile(*imagePath)
 	if err != nil {
 		log.Fatalf("Error reading image file: %v\n", err)
 	}

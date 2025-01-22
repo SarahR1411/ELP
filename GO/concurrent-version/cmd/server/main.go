@@ -7,7 +7,7 @@ import (
 	"log"
 	"net"
 	"os"
-
+	"runtime"
 	"GO/concurrent-version/restoration"
 )
 
@@ -16,6 +16,7 @@ const port = ":8080" // Server port
 func handleConnection(conn net.Conn) {
 	defer conn.Close()
 	fmt.Println("Client connected!")
+	numWorkers := runtime.NumCPU()
 
 	// 1. Receive the image size
 	var imgSize int64
@@ -60,8 +61,8 @@ func handleConnection(conn net.Conn) {
 
 	edgeMask := restoration.EdgeDetectionConcurrent(img)
 	featheredMask := restoration.FeatherMaskConcurrent(mask, 5, edgeMask)
-	restoredImg := restoration.InpaintWithEdges(img, featheredMask, edgeMask)
-	finalImg := restoration.PostProcessSharpenByChunks(restoredImg)
+	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask)
+	finalImg := restoration.PostProcessSharpenByChunks(restoredImg, numWorkers)
 
 	outputPath := "temp_output.jpg"
 	err = restoration.SaveImage(finalImg, outputPath)
