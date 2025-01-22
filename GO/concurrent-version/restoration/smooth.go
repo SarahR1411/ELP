@@ -34,14 +34,18 @@ func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
 	}
 
 	offset := len(kernel) / 2
-	rowsPerWorker := height / numWorkers
+
+	// Calculate chunk dimensions based on the number of workers
+	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(float64(numWorkers))))
+	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(float64(numWorkers))))
+
 	var wg sync.WaitGroup
 
-	// Worker function for processing rows
-	processChunk := func(startRow, endRow int) {
+	// Worker function for processing a chunk
+	processChunk := func(xStart, xEnd, yStart, yEnd int) {
 		defer wg.Done()
-		for y := startRow + offset; y < endRow-offset; y++ {
-			for x := offset; x < width-offset; x++ {
+		for y := yStart + offset; y < yEnd-offset && y < height; y++ {
+			for x := xStart + offset; x < xEnd-offset && x < width; x++ {
 				var r, g, b float64
 				for ky := -offset; ky <= offset; ky++ {
 					for kx := -offset; kx <= offset; kx++ {
@@ -70,26 +74,27 @@ func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
 					B: clamp(b),
 					A: 255,
 				})
-			}
-		}
-	}
+				// Blend adjacent pixels
+        }
+    }
+}
 
-	// Launch workers
-	for i := 0; i < numWorkers; i++ {
-		startRow := i * rowsPerWorker
-		endRow := startRow + rowsPerWorker
-		if i == numWorkers-1 {
-			endRow = height
+
+	// Launch workers for each chunk
+	for yStart := 0; yStart < height; yStart += chunkHeight {
+		for xStart := 0; xStart < width; xStart += chunkWidth {
+			xEnd := xStart + chunkWidth
+			yEnd := yStart + chunkHeight
+			wg.Add(1)
+			go processChunk(xStart, xEnd, yStart, yEnd)
 		}
-		wg.Add(1)
-		go processChunk(startRow, endRow)
 	}
 
 	wg.Wait()
 	return output
 }
 
-// Gaussian blurr for smoothing and then image sharpening 
+// Gaussian blurr for smoothing and then image sharpening
 
 // Generate a Gaussian kernel dynamically
 func generateGaussianKernel(size int, sigma float64) [][]float64 {

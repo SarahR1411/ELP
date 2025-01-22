@@ -62,7 +62,6 @@ func findMinMax(cdf []int) (min, max int) {
 	return min, max
 }
 
-
 // computeCDF calculates the cumulative distribution function from a histogram
 func computeCDF(hist []int) []int {
 	cdf := make([]int, len(hist))

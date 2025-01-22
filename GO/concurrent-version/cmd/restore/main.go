@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log"
 	"time"
-
+	"runtime"
 	"GO/concurrent-version/restoration"
 )
 
 func main() {
+	numWorkers := runtime.NumCPU()
+	fmt.Printf("Number of CPU cores: %d\n", numWorkers)
 	imagePath := "old_photo.jpeg"
 	maskImagePath := "new_photo_mask.jpeg"
 	restoredImagePath := "restored_photo.jpg"
@@ -22,10 +24,7 @@ func main() {
 	start := time.Now()
 
 	// Create the mask in chunks
-	mask, err := restoration.CreateMaskByChunks(img, maskImagePath, 4) // 4 workers
-	if err != nil {
-		log.Fatalf("Error creating mask: %v\n", err)
-	}
+	mask, err := restoration.CreateMaskByChunks(img, maskImagePath)
 
 	// Generate edge mask for enhanced blending
 	edgeMask := restoration.EdgeDetectionConcurrent(img)
@@ -33,12 +32,11 @@ func main() {
 	// Feather the mask
 	featheredMask := restoration.FeatherMaskConcurrent(mask, 40, edgeMask)
 
-
 	// Apply scratch removal in chunks
-	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask, 4)
+	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask)
 
 	// Post-process for sharpening in chunks
-	finalImg := restoration.PostProcessSharpenByChunks(restoredImg, 4)
+	finalImg := restoration.PostProcessSharpenByChunks(restoredImg, numWorkers)
 
 	elapsed := time.Since(start)
 
@@ -51,9 +49,3 @@ func main() {
 	fmt.Printf("Restored image saved to: %s\n", restoredImagePath)
 	fmt.Printf("Processing time: %v\n", elapsed)
 }
-
-
-
-
-
-
