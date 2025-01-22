@@ -10,6 +10,10 @@ import (
 	"os"
 )
 
+// To use activate the server first by running the server file in a seperate terminal
+// Then run the client file using a command like this go run main.go -file /Users/sarah/Desktop/ELP_S1/ELP/GO/concurrent-version/assets/old_photo.jpeg
+// If you have issues geting the correct path write the pwd command in the terminal for help
+
 const serverAddress = "localhost:8080" // server address
 
 func main() {
