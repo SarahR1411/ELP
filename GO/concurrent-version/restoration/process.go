@@ -1,11 +1,12 @@
 package restoration
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"math"
-	"sync"
 	"runtime"
+	"sync"
 )
 
 // Get the median color of surrounding pixels for inpainting
@@ -39,8 +40,6 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 	if weightSum == 0 {
 		return img.At(x, y) // Use the original image color directly
 	}
-	
-
 
 	return color.RGBA{
 		R: uint8((sumR / weightSum) / 256),
@@ -60,15 +59,18 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *imag
 	chunkWidth := int(math.Ceil(float64(width)/math.Sqrt(float64(numWorkers)))) + 1
 	chunkHeight := int(math.Ceil(float64(height)/math.Sqrt(float64(numWorkers)))) + 1
 
-
 	var wg sync.WaitGroup
 
 	// Worker function for processing a chunk of the image
 	overlap := 2 // Number of pixels to overlap
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
 		defer wg.Done()
+		fmt.Printf("Processing chunk: xStart=%d, xEnd=%d, yStart=%d, yEnd=%d\n", xStart, xEnd, yStart, yEnd)
+
 		for y := yStart; y < yEnd && y < height; y++ {
 			for x := xStart; x < xEnd && x < width; x++ {
+				fmt.Printf("Processing pixel: x=%d, y=%d\n", x, y) // Log each coordinate
+
 				if mask[y][x] > 0 {
 					output.Set(x, y, GetBlendedColorWithEdges(img, mask, edges, x, y))
 				} else {
@@ -87,44 +89,42 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *imag
 		}
 	}
 
-
 	wg.Wait()
 	return SmoothImage(output)
 }
 
-
 func SmoothImage(img *image.RGBA) *image.RGBA {
-    bounds := img.Bounds()
-    smoothed := image.NewRGBA(bounds)
-    width, height := bounds.Dx(), bounds.Dy()
+	bounds := img.Bounds()
+	smoothed := image.NewRGBA(bounds)
+	width, height := bounds.Dx(), bounds.Dy()
 
-    kernel := [][]float64{
-        {1, 2, 1},
-        {2, 4, 2},
-        {1, 2, 1},
-    }
-    kernelSum := 16.0
+	kernel := [][]float64{
+		{1, 2, 1},
+		{2, 4, 2},
+		{1, 2, 1},
+	}
+	kernelSum := 16.0
 
-    for y := 1; y < height-1; y++ {
-        for x := 1; x < width-1; x++ {
-            var sumR, sumG, sumB float64
-            for ky := -1; ky <= 1; ky++ {
-                for kx := -1; kx <= 1; kx++ {
-                    nx, ny := x+kx, y+ky
-                    r, g, b, _ := img.At(nx, ny).RGBA()
-                    weight := kernel[ky+1][kx+1]
-                    sumR += float64(r>>8) * weight
-                    sumG += float64(g>>8) * weight
-                    sumB += float64(b>>8) * weight
-                }
-            }
-            smoothed.Set(x, y, color.RGBA{
-                R: uint8(sumR / kernelSum),
-                G: uint8(sumG / kernelSum),
-                B: uint8(sumB / kernelSum),
-                A: 255,
-            })
-        }
-    }
-    return smoothed
+	for y := 1; y < height-1; y++ {
+		for x := 1; x < width-1; x++ {
+			var sumR, sumG, sumB float64
+			for ky := -1; ky <= 1; ky++ {
+				for kx := -1; kx <= 1; kx++ {
+					nx, ny := x+kx, y+ky
+					r, g, b, _ := img.At(nx, ny).RGBA()
+					weight := kernel[ky+1][kx+1]
+					sumR += float64(r>>8) * weight
+					sumG += float64(g>>8) * weight
+					sumB += float64(b>>8) * weight
+				}
+			}
+			smoothed.Set(x, y, color.RGBA{
+				R: uint8(sumR / kernelSum),
+				G: uint8(sumG / kernelSum),
+				B: uint8(sumB / kernelSum),
+				A: 255,
+			})
+		}
+	}
+	return smoothed
 }
