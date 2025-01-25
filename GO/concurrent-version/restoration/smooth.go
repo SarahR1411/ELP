@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"math"
 	"sync"
-	"fmt"
 )
 
 // Apply gaussian blur and sharpening
@@ -87,8 +86,6 @@ func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
         for xStart := 0; xStart < width; xStart += chunkWidth - overlap {
             xEnd := min(xStart+chunkWidth, width)
             yEnd := min(yStart+chunkHeight, height)
-
-            fmt.Printf("Processing chunk: x[%d:%d], y[%d:%d]\n", xStart, xEnd, yStart, yEnd)
 
             wg.Add(1)
             go processChunk(max(0, xStart-overlap), min(width, xEnd+overlap), max(0, yStart-overlap), min(height, yEnd+overlap))

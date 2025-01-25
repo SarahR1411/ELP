@@ -1,7 +1,6 @@
 package restoration
 
 import (
-	"fmt"
 	"image"
 	"image/color"
 	"math"
