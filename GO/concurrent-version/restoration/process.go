@@ -56,20 +56,20 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *imag
 	output := image.NewRGBA(bounds)
 
 	numWorkers := runtime.NumCPU() // Use available CPU cores
-	chunkWidth := int(math.Ceil(float64(width)/math.Sqrt(float64(numWorkers)))) + 1
-	chunkHeight := int(math.Ceil(float64(height)/math.Sqrt(float64(numWorkers)))) + 1
+	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(2*float64(numWorkers))))
+	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(2*float64(numWorkers))))
 
 	var wg sync.WaitGroup
 
 	// Worker function for processing a chunk of the image
-	overlap := 2 // Number of pixels to overlap
+	overlap := int(math.Max(5, float64(chunkHeight)/2)) // Number of pixels to overlap
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
 		defer wg.Done()
 		fmt.Printf("Processing chunk: xStart=%d, xEnd=%d, yStart=%d, yEnd=%d\n", xStart, xEnd, yStart, yEnd)
 
 		for y := yStart; y < yEnd && y < height; y++ {
 			for x := xStart; x < xEnd && x < width; x++ {
-				fmt.Printf("Processing pixel: x=%d, y=%d\n", x, y) // Log each coordinate
+				fmt.Printf("Processing pixel: x=%d, y=%d, mask=%f\n", x, y, mask[y][x]) // Log mask value
 
 				if mask[y][x] > 0 {
 					output.Set(x, y, GetBlendedColorWithEdges(img, mask, edges, x, y))
