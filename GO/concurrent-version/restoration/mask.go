@@ -10,36 +10,29 @@ import (
 	"sync"
 )
 
-// These functions need to be improved. They're still kinda slow and they create weird lines in the image
-
 func CreateMaskByChunks(img image.Image, outputPath string) ([][]float64, error) {
-	// Get the dimensions of the image
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 
-	// Create a new mask (2D array of floats)
+	// Create the mask
 	mask := make([][]float64, height)
 	for i := range mask {
 		mask[i] = make([]float64, width)
 	}
 
-	// Get the number of CPU cores
 	numWorkers := runtime.NumCPU()
-
-	// Dynamically calculate chunk size
 	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(float64(numWorkers))))
 	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(float64(numWorkers))))
+	overlap := 2
 
 	var wg sync.WaitGroup
-
-	// Worker function to process a chunk of the image
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
 		defer wg.Done()
 		for y := yStart; y < yEnd && y < height; y++ {
 			for x := xStart; x < xEnd && x < width; x++ {
 				r, g, b, _ := img.At(x, y).RGBA()
-				sum := uint32(r>>8) + uint32(g>>8) + uint32(b>>8)
-				if sum > 427 { // Adjust threshold as needed
+				luminance := 0.299*float64(r>>8) + 0.587*float64(g>>8) + 0.114*float64(b>>8)
+				if luminance > 180 { // Debug threshold
 					mask[y][x] = 1.0
 				} else {
 					mask[y][x] = 0.0
@@ -48,25 +41,23 @@ func CreateMaskByChunks(img image.Image, outputPath string) ([][]float64, error)
 		}
 	}
 
-	// Launch goroutines for each chunk
-	for yStart := 0; yStart < height; yStart += chunkHeight {
-		for xStart := 0; xStart < width; xStart += chunkWidth {
+	for yStart := 0; yStart < height; yStart += chunkHeight - overlap {
+		yEnd := yStart + chunkHeight
+		if yEnd > height {
+			yEnd = height
+		}
+		for xStart := 0; xStart < width; xStart += chunkWidth - overlap {
 			xEnd := xStart + chunkWidth
-			yEnd := yStart + chunkHeight
+			if xEnd > width {
+				xEnd = width
+			}
 			wg.Add(1)
 			go processChunk(xStart, xEnd, yStart, yEnd)
 		}
 	}
-
 	wg.Wait()
 
-	// Save the mask image
-	outputFile, err := os.Create(outputPath)
-	if err != nil {
-		return nil, err
-	}
-	defer outputFile.Close()
-
+	// Save mask for debugging
 	maskImg := image.NewRGBA(bounds)
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -77,6 +68,11 @@ func CreateMaskByChunks(img image.Image, outputPath string) ([][]float64, error)
 			}
 		}
 	}
+	outputFile, err := os.Create(outputPath)
+	if err != nil {
+		return nil, err
+	}
+	defer outputFile.Close()
 	err = jpeg.Encode(outputFile, maskImg, nil)
 	if err != nil {
 		return nil, err
