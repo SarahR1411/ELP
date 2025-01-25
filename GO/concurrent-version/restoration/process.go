@@ -16,19 +16,27 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 
 	var sumR, sumG, sumB, weightSum float64
 	maxRadius := 5
-	if x < maxRadius || x >= width-maxRadius || y < maxRadius || y >= height-maxRadius {
-		maxRadius = 10 // Increase radius near the edges
+	adjustedRadius := maxRadius
+	if x < maxRadius {
+		adjustedRadius = x
+	} else if x >= width-maxRadius {
+		adjustedRadius = width - x - 1
+	}
+	if y < maxRadius {
+		adjustedRadius = min(adjustedRadius, y)
+	} else if y >= height-maxRadius {
+		adjustedRadius = min(adjustedRadius, height - y - 1)
 	}
 
-	for dy := -maxRadius; dy <= maxRadius; dy++ {
-		for dx := -maxRadius; dx <= maxRadius; dx++ {
+	for dy := -adjustedRadius; dy <= adjustedRadius; dy++ {
+		for dx := -adjustedRadius; dx <= adjustedRadius; dx++ {
 			nx, ny := x+dx, y+dy
 			if nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny][nx] < 1.0 {
 				c := img.At(nx, ny)
 				r, g, b, _ := c.RGBA()
 				edgeWeight := 1.0 - edges[ny][nx]
 				distance := float64(dx*dx + dy*dy)
-				weight := edgeWeight / (math.Sqrt(distance) + 1e-6) // Use sqrt for closer pixels' stronger influence
+				weight := edgeWeight / (math.Sqrt(distance) + 1e-6)
 				sumR += float64(r) * weight
 				sumG += float64(g) * weight
 				sumB += float64(b) * weight
@@ -36,9 +44,10 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 			}
 		}
 	}
+	
 
 	if weightSum == 0 {
-		return img.At(x, y) // Use the original image color directly
+		return img.At(x, y) // Use the original image color directly 
 	}
 
 	return color.RGBA{
@@ -62,35 +71,52 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *imag
 	var wg sync.WaitGroup
 
 	// Worker function for processing a chunk of the image
-	overlap := int(math.Max(5, float64(chunkHeight)/2)) // Number of pixels to overlap
+	overlap := 5 // Number of pixels to overlap
+	var mu sync.Mutex
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
-		defer wg.Done()
-		fmt.Printf("Processing chunk: xStart=%d, xEnd=%d, yStart=%d, yEnd=%d\n", xStart, xEnd, yStart, yEnd)
-
-		for y := yStart; y < yEnd && y < height; y++ {
-			for x := xStart; x < xEnd && x < width; x++ {
-				fmt.Printf("Processing pixel: x=%d, y=%d, mask=%f\n", x, y, mask[y][x]) // Log mask value
-
-				if mask[y][x] > 0 {
-					output.Set(x, y, GetBlendedColorWithEdges(img, mask, edges, x, y))
-				} else {
-					output.Set(x, y, img.At(x, y))
-				}
-			}
-		}
-	}
+    defer wg.Done()
+    for y := max(0, yStart-overlap); y < min(yEnd+overlap, height); y++ {
+        for x := max(0, xStart-overlap); x < min(xEnd+overlap, width); x++ {
+            mu.Lock()
+            if mask[y][x] > 0 {
+                blendedColor := GetBlendedColorWithEdges(img, mask, edges, x, y)
+				output.Set(x, y, blendedColor)
+            } else {
+                output.Set(x, y, img.At(x, y))
+            }
+            mu.Unlock()
+        }
+    }
+}
 
 	for yStart := 0; yStart < height; yStart += chunkHeight - overlap {
 		for xStart := 0; xStart < width; xStart += chunkWidth - overlap {
-			xEnd := xStart + chunkWidth
-			yEnd := yStart + chunkHeight
+			xEnd := min(xStart + chunkWidth, width)
+			yEnd := min(yStart + chunkHeight, height)
+	
 			wg.Add(1)
 			go processChunk(xStart, xEnd, yStart, yEnd)
 		}
 	}
+	
+
 
 	wg.Wait()
 	return SmoothImage(output)
+}
+
+func max(a, b int) int {
+    if a > b {
+        return a
+    }
+    return b
+}
+
+func min(a, b int) int {
+    if a < b {
+        return a
+    }
+    return b
 }
 
 func SmoothImage(img *image.RGBA) *image.RGBA {

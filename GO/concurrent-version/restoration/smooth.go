@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"math"
 	"sync"
+	"fmt"
 )
 
 // Apply gaussian blur and sharpening
@@ -22,77 +23,82 @@ func ApplySmoothing(img image.Image) image.Image {
 }
 
 func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
-	bounds := img.Bounds()
-	width, height := bounds.Dx(), bounds.Dy()
-	output := image.NewRGBA(bounds)
+    bounds := img.Bounds()
+    width, height := bounds.Dx(), bounds.Dy()
+    output := image.NewRGBA(bounds)
 
-	// Sharpen kernel
-	kernel := [][]float64{
-		{0, -1, 0},
-		{-1, 5, -1},
-		{0, -1, 0},
-	}
+    // Sharpen kernel
+    kernel := [][]float64{
+        {0, -1, 0},
+        {-1, 5, -1},
+        {0, -1, 0},
+    }
 
-	offset := len(kernel) / 2
+    offset := len(kernel) / 2 // Kernel size offset
 
-	// Calculate chunk dimensions based on the number of workers
-	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(float64(numWorkers))))
-	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(float64(numWorkers))))
+    // Calculate chunk dimensions with overlap
+    chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(float64(numWorkers))))
+    chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(float64(numWorkers))))
+    overlap := offset // Ensure overlap equals kernel offset
 
-	var wg sync.WaitGroup
+    var wg sync.WaitGroup
 
-	// Worker function for processing a chunk
-	processChunk := func(xStart, xEnd, yStart, yEnd int) {
-		defer wg.Done()
-		for y := yStart + offset; y < yEnd-offset && y < height; y++ {
-			for x := xStart + offset; x < xEnd-offset && x < width; x++ {
-				var r, g, b float64
-				for ky := -offset; ky <= offset; ky++ {
-					for kx := -offset; kx <= offset; kx++ {
-						nx, ny := x+kx, y+ky
-						px := img.At(nx, ny)
-						pr, pg, pb, _ := px.RGBA()
-						weight := kernel[ky+offset][kx+offset]
-						r += float64(pr) * weight
-						g += float64(pg) * weight
-						b += float64(pb) * weight
-					}
-				}
+    // Worker function for processing a chunk
+    processChunk := func(xStart, xEnd, yStart, yEnd int) {
+        defer wg.Done()
+        for y := max(yStart, offset); y < min(yEnd, height-offset); y++ {
+            for x := max(xStart, offset); x < min(xEnd, width-offset); x++ {
+                var r, g, b float64
+                for ky := -offset; ky <= offset; ky++ {
+                    for kx := -offset; kx <= offset; kx++ {
+                        nx, ny := x+kx, y+ky
+                        px := img.At(nx, ny)
+                        pr, pg, pb, _ := px.RGBA()
+                        weight := kernel[ky+offset][kx+offset]
+                        r += float64(pr) * weight
+                        g += float64(pg) * weight
+                        b += float64(pb) * weight
+                    }
+                }
 
-				clamp := func(value float64) uint8 {
-					if value < 0 {
-						return 0
-					} else if value > 255*256 {
-						return 255
-					}
-					return uint8(value / 256)
-				}
+                // Helper function to clamp color values to [0, 255]
+                clamp := func(value float64) uint8 {
+                    if value < 0 {
+                        return 0
+                    } else if value > 255*256 {
+                        return 255
+                    }
+                    return uint8(value / 256)
+                }
 
-				output.Set(x, y, color.RGBA{
-					R: clamp(r),
-					G: clamp(g),
-					B: clamp(b),
-					A: 255,
-				})
-				// Blend adjacent pixels
+                // Set the processed pixel in the output image
+                output.Set(x, y, color.RGBA{
+                    R: clamp(r),
+                    G: clamp(g),
+                    B: clamp(b),
+                    A: 255,
+                })
+            }
         }
     }
+
+    // Launch workers for each chunk
+    for yStart := 0; yStart < height; yStart += chunkHeight - overlap {
+        for xStart := 0; xStart < width; xStart += chunkWidth - overlap {
+            xEnd := min(xStart+chunkWidth, width)
+            yEnd := min(yStart+chunkHeight, height)
+
+            fmt.Printf("Processing chunk: x[%d:%d], y[%d:%d]\n", xStart, xEnd, yStart, yEnd)
+
+            wg.Add(1)
+            go processChunk(max(0, xStart-overlap), min(width, xEnd+overlap), max(0, yStart-overlap), min(height, yEnd+overlap))
+        }
+    }
+
+    wg.Wait()
+    return output
 }
 
-
-	// Launch workers for each chunk
-	for yStart := 0; yStart < height; yStart += chunkHeight {
-		for xStart := 0; xStart < width; xStart += chunkWidth {
-			xEnd := xStart + chunkWidth
-			yEnd := yStart + chunkHeight
-			wg.Add(1)
-			go processChunk(xStart, xEnd, yStart, yEnd)
-		}
-	}
-
-	wg.Wait()
-	return output
-}
 
 // Gaussian blurr for smoothing and then image sharpening
 
