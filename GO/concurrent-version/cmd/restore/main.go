@@ -12,15 +12,13 @@ import (
 
 func main() {
 	numWorkers := runtime.NumCPU()
-	fmt.Printf("Number of CPU cores: %d\n", numWorkers)
+	fmt.Printf("Number of workers used: %d\n", numWorkers)
 	rootDir, _ := os.Getwd() // Current directory is cmd/restore
 	projectDir := filepath.Dir(filepath.Dir(rootDir)) // Move up two levels to concurrent-version
 
 	imagePath := filepath.Join(projectDir, "assets", "old_photo.jpeg")
 	maskImagePath := filepath.Join(projectDir, "assets", "new_photo_mask.jpeg")
 	restoredImagePath := filepath.Join(projectDir, "assets", "restored_photo.jpg")
-
-
 
 	// Load the image
 	img, err := restoration.LoadImage(imagePath)
@@ -31,22 +29,25 @@ func main() {
 	start := time.Now()
 
 	// Create the mask in chunks
-	mask, err := restoration.CreateMaskByChunks(img, maskImagePath)
+	mask, err := restoration.CreateMaskByChunks(img, maskImagePath, numWorkers)
 	if err != nil {
 		log.Fatalf("Error creating mask: %v\n", err)
 	}
 
-	// Generate edge mask for enhanced blending
-	edgeMask := restoration.EdgeDetectionConcurrent(img)
+	// edge mask for blending
+	edgeMask := restoration.EdgeDetectionConcurrent(img, numWorkers)
 
-	// Feather the mask
-	featheredMask := restoration.FeatherMaskConcurrent(mask, 40, edgeMask)
+	// feather the mask
+	featheredMask := restoration.FeatherMaskConcurrent(mask, 5, edgeMask, numWorkers)
 
-	// Apply scratch removal in chunks
-	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask)
+	// apply scratch removal in chunks
+	restoredImg := restoration.InpaintByChunks(img, featheredMask, edgeMask, numWorkers)
 
-	// Post-process for sharpening in chunks
-	finalImg := restoration.PostProcessSharpenByChunks(restoredImg, numWorkers)
+	// Apply color correction (histogram equalization)
+	colorCorrectedImg := restoration.HistEqualConcurrent(restoredImg, numWorkers)
+
+	// Post-process for sharpening and smoothing
+	finalImg := restoration.ApplySmoothing(colorCorrectedImg, numWorkers)
 
 	elapsed := time.Since(start)
 

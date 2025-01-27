@@ -11,7 +11,7 @@ import (
 )
 
 // To use activate the server first by running the server file in a seperate terminal
-// Then run the client file using a command like this go run main.go -file /Users/sarah/Desktop/ELP_S1/ELP/GO/concurrent-version/assets/old_photo.jpeg
+// Then run the client file using a command like this: go run main.go -file /Users/sarah/Desktop/ELP_S1/ELP/GO/concurrent-version/assets/old_photo.jpeg
 // If you have issues geting the correct path write the pwd command in the terminal for help
 
 const serverAddress = "localhost:8080" // server address
@@ -52,7 +52,22 @@ func main() {
 	}
 	fmt.Println("Image sent to server!")
 
-	// 5. Receive the restored image size
+	// 5. Receive metadata size
+	var metadataSize int64
+	err = binary.Read(conn, binary.LittleEndian, &metadataSize)
+	if err != nil {
+		log.Fatalf("Error reading metadata size: %v\n", err)
+	}
+
+	// 6. Receive metadata
+	metadata := make([]byte, metadataSize)
+	_, err = io.ReadFull(conn, metadata)
+	if err != nil {
+		log.Fatalf("Error reading metadata: %v\n", err)
+	}
+	fmt.Println("Metadata received:", string(metadata))
+
+	// 7. Receive the restored image size
 	var restoredSize int64
 	err = binary.Read(conn, binary.LittleEndian, &restoredSize)
 	if err != nil {
@@ -60,14 +75,14 @@ func main() {
 	}
 	fmt.Println("Restored image size received:", restoredSize)
 
-	// 6. Receive the restored image data
+	// 8. Receive the restored image data
 	restoredData := make([]byte, restoredSize)
 	_, err = io.ReadFull(conn, restoredData)
 	if err != nil {
 		log.Fatalf("Error reading restored image data: %v\n", err)
 	}
 
-	// 7. Save the restored image to a file
+	// 9. Save the restored image to a file
 	outputPath := "restored_by_server.jpg"
 	err = os.WriteFile(outputPath, restoredData, 0644)
 	if err != nil {

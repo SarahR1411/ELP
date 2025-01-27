@@ -3,10 +3,12 @@ package restoration
 import (
 	"image"
 	"image/color"
+	"math"
+	"sync"
 )
 
 // We'll use Histogram equalization for color correction
-func HistEqual(img image.Image) *image.RGBA {
+func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
 	newImg := image.NewRGBA(bounds)
@@ -14,16 +16,47 @@ func HistEqual(img image.Image) *image.RGBA {
 	// Create histograms for each channel
 	histR, histG, histB := make([]int, 256), make([]int, 256), make([]int, 256)
 
-	// Calculate the histogram for each channel
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			c := img.At(x, y)
-			r, g, b, _ := c.RGBA()
-			histR[r>>8]++
-			histG[g>>8]++
-			histB[b>>8]++
+	// Mutex to synchronize access to histograms
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// Calculate the histogram for each channel in chunks
+	chunkHeight := int(math.Ceil(float64(height) / float64(numWorkers)))
+	processChunk := func(startY, endY int) {
+		defer wg.Done()
+		localHistR, localHistG, localHistB := make([]int, 256), make([]int, 256), make([]int, 256)
+
+		for y := startY; y < endY; y++ {
+			for x := 0; x < width; x++ {
+				c := img.At(x, y)
+				r, g, b, _ := c.RGBA()
+				localHistR[r>>8]++
+				localHistG[g>>8]++
+				localHistB[b>>8]++
+			}
 		}
+
+		// Merge local histograms into the global ones
+		mu.Lock()
+		for i := 0; i < 256; i++ {
+			histR[i] += localHistR[i]
+			histG[i] += localHistG[i]
+			histB[i] += localHistB[i]
+		}
+		mu.Unlock()
 	}
+
+	// Launch workers to process chunks
+	for startY := 0; startY < height; startY += chunkHeight {
+		endY := startY + chunkHeight
+		if endY > height {
+			endY = height
+		}
+		wg.Add(1)
+		go processChunk(startY, endY)
+	}
+
+	wg.Wait()
 
 	// Calculate the cumulative distribution function (CDF)
 	cdfR := computeCDF(histR)
@@ -35,19 +68,35 @@ func HistEqual(img image.Image) *image.RGBA {
 	minG, maxG := findMinMax(cdfG)
 	minB, maxB := findMinMax(cdfB)
 
-	// Apply histogram equalization to each pixel
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			r, g, b, a := img.At(x, y).RGBA()
-			newR := uint8(((cdfR[r>>8] - minR) * 255) / (maxR - minR))
-			newG := uint8(((cdfG[g>>8] - minG) * 255) / (maxG - minG))
-			newB := uint8(((cdfB[b>>8] - minB) * 255) / (maxB - minB))
-			newImg.SetRGBA(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
+	// Apply histogram equalization to each pixel in chunks
+	wg = sync.WaitGroup{}
+	processEqualizationChunk := func(startY, endY int) {
+		defer wg.Done()
+		for y := startY; y < endY; y++ {
+			for x := 0; x < width; x++ {
+				r, g, b, a := img.At(x, y).RGBA()
+				newR := uint8(((cdfR[r>>8] - minR) * 255) / (maxR - minR))
+				newG := uint8(((cdfG[g>>8] - minG) * 255) / (maxG - minG))
+				newB := uint8(((cdfB[b>>8] - minB) * 255) / (maxB - minB))
+				newImg.SetRGBA(x, y, color.RGBA{R: newR, G: newG, B: newB, A: uint8(a >> 8)})
+			}
 		}
 	}
 
+	// Launch workers to process equalization
+	for startY := 0; startY < height; startY += chunkHeight {
+		endY := startY + chunkHeight
+		if endY > height {
+			endY = height
+		}
+		wg.Add(1)
+		go processEqualizationChunk(startY, endY)
+	}
+
+	wg.Wait()
 	return newImg
 }
+
 
 func findMinMax(cdf []int) (min, max int) {
 	min, max = -1, -1

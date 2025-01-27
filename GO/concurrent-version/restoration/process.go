@@ -4,7 +4,6 @@ import (
 	"image"
 	"image/color"
 	"math"
-	"runtime"
 	"sync"
 )
 
@@ -58,12 +57,12 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 }
 
 // InpaintByChunks processes the image by dividing it into chunks of pixels and applying inpainting.
-func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *image.RGBA {
+func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 	output := image.NewRGBA(bounds)
 
-	numWorkers := runtime.NumCPU() // Use available CPU cores
+	
 	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(2*float64(numWorkers))))
 	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(2*float64(numWorkers))))
 
@@ -101,7 +100,7 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64) *imag
 
 
 	wg.Wait()
-	return SmoothImage(output)
+	return SmoothImageConcurrent(output, numWorkers)
 }
 
 func max(a, b int) int {
@@ -118,38 +117,3 @@ func min(a, b int) int {
     return b
 }
 
-func SmoothImage(img *image.RGBA) *image.RGBA {
-	bounds := img.Bounds()
-	smoothed := image.NewRGBA(bounds)
-	width, height := bounds.Dx(), bounds.Dy()
-
-	kernel := [][]float64{
-		{1, 2, 1},
-		{2, 4, 2},
-		{1, 2, 1},
-	}
-	kernelSum := 16.0
-
-	for y := 1; y < height-1; y++ {
-		for x := 1; x < width-1; x++ {
-			var sumR, sumG, sumB float64
-			for ky := -1; ky <= 1; ky++ {
-				for kx := -1; kx <= 1; kx++ {
-					nx, ny := x+kx, y+ky
-					r, g, b, _ := img.At(nx, ny).RGBA()
-					weight := kernel[ky+1][kx+1]
-					sumR += float64(r>>8) * weight
-					sumG += float64(g>>8) * weight
-					sumB += float64(b>>8) * weight
-				}
-			}
-			smoothed.Set(x, y, color.RGBA{
-				R: uint8(sumR / kernelSum),
-				G: uint8(sumG / kernelSum),
-				B: uint8(sumB / kernelSum),
-				A: 255,
-			})
-		}
-	}
-	return smoothed
-}

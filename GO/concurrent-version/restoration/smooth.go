@@ -9,17 +9,18 @@ import (
 
 // Apply gaussian blur and sharpening
 
-func ApplySmoothing(img image.Image) image.Image {
+func ApplySmoothing(img image.Image, numWorkers int) image.Image {
+    // Apply Gaussian blur
+    kernelSize := 3 // smaller kernel = finer smoothing
+    sigma := 0.5    // medium smoothing
+    blurredImage := GaussianBlurConcurrent(img, kernelSize, sigma, numWorkers)
 
-	kernelSize := 3 // smaller kernel = finer smoothing
-	sigma := 0.5    // medium smoothing
-	blurredImage := GaussianBlur(img, kernelSize, sigma)
+    // Sharpen the image using post-processing
+    sharpenedImage := PostProcessSharpenByChunks(blurredImage, numWorkers)
 
-	sharpenedImage := Sharpen(blurredImage)
-
-	return sharpenedImage
-
+    return sharpenedImage
 }
+
 
 func PostProcessSharpenByChunks(img image.Image, numWorkers int) image.Image {
     bounds := img.Bounds()
@@ -128,107 +129,135 @@ func generateGaussianKernel(size int, sigma float64) [][]float64 {
 }
 
 // Apply Gaussian blur with a dynamic kernel size
-func GaussianBlur(img image.Image, kernelSize int, sigma float64) image.Image {
+func GaussianBlurConcurrent(img image.Image, kernelSize int, sigma float64, numWorkers int) image.Image {
 	if kernelSize%2 == 0 {
 		panic("Kernel size must be an odd number")
 	}
 
 	kernel := generateGaussianKernel(kernelSize, sigma)
 	bounds := img.Bounds()
-	// width, height := bounds.Dx(), bounds.Dy()
+	height := bounds.Dy()
 	blurredImage := image.NewRGBA(bounds)
 	offset := kernelSize / 2
 
-	for y := bounds.Min.Y; y < bounds.Max.Y; y++ {
-		for x := bounds.Min.X; x < bounds.Max.X; x++ {
-			var r, g, b float64
-			for ky := -offset; ky <= offset; ky++ {
-				for kx := -offset; kx <= offset; kx++ {
-					nx := x + kx
-					ny := y + ky
+	// Calculate chunk height based on the number of workers
+	chunkHeight := int(math.Ceil(float64(height) / float64(numWorkers)))
 
-					// Handle edges by replicating border pixels
-					if nx < bounds.Min.X {
-						nx = bounds.Min.X
-					} else if nx >= bounds.Max.X {
-						nx = bounds.Max.X - 1
-					}
-					if ny < bounds.Min.Y {
-						ny = bounds.Min.Y
-					} else if ny >= bounds.Max.Y {
-						ny = bounds.Max.Y - 1
-					}
+	var wg sync.WaitGroup
 
-					px := img.At(nx, ny)
-					pr, pg, pb, _ := px.RGBA()
-					weight := kernel[ky+offset][kx+offset]
-					r += float64(pr) * weight
-					g += float64(pg) * weight
-					b += float64(pb) * weight
+	// Worker function to process a chunk of the image
+	processChunk := func(startY, endY int) {
+		defer wg.Done()
+		for y := startY; y < endY; y++ {
+			for x := bounds.Min.X; x < bounds.Max.X; x++ {
+				var r, g, b float64
+				for ky := -offset; ky <= offset; ky++ {
+					for kx := -offset; kx <= offset; kx++ {
+						nx := x + kx
+						ny := y + ky
+
+						// Handle edges by replicating border pixels
+						if nx < bounds.Min.X {
+							nx = bounds.Min.X
+						} else if nx >= bounds.Max.X {
+							nx = bounds.Max.X - 1
+						}
+						if ny < bounds.Min.Y {
+							ny = bounds.Min.Y
+						} else if ny >= bounds.Max.Y {
+							ny = bounds.Max.Y - 1
+						}
+
+						px := img.At(nx, ny)
+						pr, pg, pb, _ := px.RGBA()
+						weight := kernel[ky+offset][kx+offset]
+						r += float64(pr>>8) * weight
+						g += float64(pg>>8) * weight
+						b += float64(pb>>8) * weight
+					}
 				}
+				blurredImage.Set(x, y, color.RGBA{
+					R: uint8(r),
+					G: uint8(g),
+					B: uint8(b),
+					A: 255,
+				})
 			}
-			blurredImage.Set(x, y, color.RGBA{
-				R: uint8(r / 256),
-				G: uint8(g / 256),
-				B: uint8(b / 256),
-				A: 255,
-			})
 		}
 	}
 
+	// Launch workers for each chunk
+	for startY := 0; startY < height; startY += chunkHeight {
+		endY := startY + chunkHeight
+		if endY > height {
+			endY = height
+		}
+		wg.Add(1)
+		go processChunk(startY, endY)
+	}
+
+	wg.Wait()
 	return blurredImage
 }
 
-func Sharpen(img image.Image) image.Image {
+func SmoothImageConcurrent(img *image.RGBA, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
-	// width, height := bounds.Dx(), bounds.Dy()
-	sharpenedImage := image.NewRGBA(bounds)
+	width, height := bounds.Dx(), bounds.Dy()
+	smoothed := image.NewRGBA(bounds)
 
-	// Define a sharpening kernel
 	kernel := [][]float64{
-		{-1, -2, -1},
-		{-2, 13, -2},
-		{-1, -2, -1},
+		{1, 2, 1},
+		{2, 4, 2},
+		{1, 2, 1},
 	}
+	kernelSum := 16.0
 
-	offset := len(kernel) / 2
+	// Calculate chunk height based on the number of workers
+	chunkHeight := int(math.Ceil(float64(height) / float64(numWorkers)))
 
-	for y := bounds.Min.Y + offset; y < bounds.Max.Y-offset; y++ {
-		for x := bounds.Min.X + offset; x < bounds.Max.X-offset; x++ {
-			var r, g, b float64
-			for ky := -offset; ky <= offset; ky++ {
-				for kx := -offset; kx <= offset; kx++ {
-					nx := x + kx
-					ny := y + ky
+	var wg sync.WaitGroup
 
-					// Get the pixel and apply the kernel
-					px := img.At(nx, ny)
-					pr, pg, pb, _ := px.RGBA()
-					weight := kernel[ky+offset][kx+offset]
-					r += float64(pr) * weight
-					g += float64(pg) * weight
-					b += float64(pb) * weight
-				}
+	// Worker function to process a chunk of the image
+	processChunk := func(startY, endY int) {
+		defer wg.Done()
+		for y := startY; y < endY; y++ {
+			// Skip boundary rows (y == 0 or y == height-1)
+			if y <= 0 || y >= height-1 {
+				continue
 			}
-
-			// Clamp the values to ensure they fit in [0, 255]
-			clamp := func(value float64) uint8 {
-				if value < 0 {
-					return 0
-				} else if value > 255*256 {
-					return 255
+			for x := 1; x < width-1; x++ {
+				var sumR, sumG, sumB float64
+				for ky := -1; ky <= 1; ky++ {
+					for kx := -1; kx <= 1; kx++ {
+						nx := x + kx
+						ny := y + ky
+						r, g, b, _ := img.At(nx, ny).RGBA()
+						weight := kernel[ky+1][kx+1]
+						sumR += float64(r>>8) * weight
+						sumG += float64(g>>8) * weight
+						sumB += float64(b>>8) * weight
+					}
 				}
-				return uint8(value / 256)
+				smoothed.Set(x, y, color.RGBA{
+					R: uint8(sumR / kernelSum),
+					G: uint8(sumG / kernelSum),
+					B: uint8(sumB / kernelSum),
+					A: 255,
+				})
 			}
-
-			sharpenedImage.Set(x, y, color.RGBA{
-				R: clamp(r),
-				G: clamp(g),
-				B: clamp(b),
-				A: 255,
-			})
 		}
 	}
 
-	return sharpenedImage
+	// Launch workers for each chunk
+	for startY := 0; startY < height; startY += chunkHeight {
+		endY := startY + chunkHeight
+		if endY > height {
+			endY = height
+		}
+		wg.Add(1)
+		go processChunk(startY, endY)
+	}
+
+	wg.Wait()
+	return smoothed
 }

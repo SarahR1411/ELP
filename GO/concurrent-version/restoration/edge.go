@@ -3,11 +3,10 @@ package restoration
 import (
 	"image"
 	"math"
-	"runtime"
 	"sync"
 )
 
-func EdgeDetectionConcurrent(img image.Image) [][]float64 {
+func EdgeDetectionConcurrent(img image.Image, numWorkers int) [][]float64 {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 	edges := make([][]float64, height)
@@ -65,7 +64,6 @@ func EdgeDetectionConcurrent(img image.Image) [][]float64 {
 	}
 
 	// Divide work into chunks
-	numWorkers := runtime.NumCPU()
 	chunkSize := int(math.Sqrt(float64((width * height) / numWorkers)))
 	wg := &sync.WaitGroup{}
 	for yStart := 0; yStart < height; yStart += chunkSize {
@@ -85,7 +83,7 @@ func EdgeDetectionConcurrent(img image.Image) [][]float64 {
 	wg.Wait()
 
 	// Normalize and apply threshold
-	threshold := 0.2 // You may adjust this value based on testing
+	threshold := 0.2
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			edges[y][x] /= maxGradient
@@ -98,63 +96,4 @@ func EdgeDetectionConcurrent(img image.Image) [][]float64 {
 	return edges
 }
 
-// FeatherMaskConcurrent applies feathering to a binary mask with concurrency.
-func FeatherMaskConcurrent(mask [][]float64, radius int, edgeMask [][]float64) [][]float64 {
-	height := len(mask)
-	width := len(mask[0])
 
-	// Output mask
-	featheredMask := make([][]float64, height)
-	for i := range featheredMask {
-		featheredMask[i] = make([]float64, width)
-	}
-
-	var wg sync.WaitGroup
-	numWorkers := 4
-	rowsPerWorker := height / numWorkers
-
-	// Feathering worker
-	processChunk := func(startRow, endRow int) {
-		defer wg.Done()
-		for y := startRow; y < endRow; y++ {
-			for x := 0; x < width; x++ {
-				if mask[y][x] == 1 {
-					// Feathering logic
-					featheredMask[y][x] = 1.0 // Fully masked
-				} else if mask[y][x] == 0 {
-					// Unmasked, keep it 0
-					featheredMask[y][x] = 0.0
-				} else {
-					// Feather edges using Gaussian-like falloff
-					minDistance := float64(radius)
-					for dy := -radius; dy <= radius; dy++ {
-						for dx := -radius; dx <= radius; dx++ {
-							nx, ny := x+dx, y+dy
-							if nx >= 0 && nx < width && ny >= 0 && ny < height && mask[ny][nx] == 1 {
-								dist := math.Sqrt(float64(dx*dx + dy*dy))
-								if dist < minDistance {
-									minDistance = dist
-								}
-							}
-						}
-					}
-					featheredMask[y][x] = math.Exp(-minDistance / float64(radius))
-				}
-			}
-		}
-	}
-
-	// Launch workers
-	for i := 0; i < numWorkers; i++ {
-		startRow := i * rowsPerWorker
-		endRow := startRow + rowsPerWorker
-		if i == numWorkers-1 {
-			endRow = height
-		}
-		wg.Add(1)
-		go processChunk(startRow, endRow)
-	}
-
-	wg.Wait()
-	return featheredMask
-}
