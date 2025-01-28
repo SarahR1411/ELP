@@ -9,6 +9,7 @@ import Json.Encode as Encode
 
 
 -- MODEL
+-- Tracks the current position, angle, whether the pen is down, and the list of lines drawn.
 
 type alias Model =
     { x : Float
@@ -68,6 +69,7 @@ update msg model =
 
 
 -- VIEW
+-- Responds to user actions (Forward, Turn, PenUp, PenDown, Clear).
 
 view : Model -> Html Msg
 view model =
@@ -85,7 +87,7 @@ view model =
 
 canvasView : Model -> Html msg
 canvasView model =
-    Html.canvas
+    Html.canvas -- Lines are drawn on an HTML5 canvas using the elm-canvas package.
         [ width 600, height 600, style "border" "1px solid black" ]
         [ Encode.list (drawLines model.lines) ]
 
