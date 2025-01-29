@@ -276,14 +276,24 @@ view model =
                     [ style "color" "#2c3e50"
                     , style "font-size" "20px"
                     , style "font-weight" "600"
-                    , style "margin-bottom" "20px"
+                    , style "margin-bottom" "10px"
                     ]
                     [ text "Example Commands" ]
+                , div 
+                    [ style "color" "#6c757d"
+                    , style "font-size" "14px"
+                    , style "margin-bottom" "20px"
+                    ]
+                    [ text "Click any example to use it in the input!" ]
                 , exampleCommand "Square" "[Repeat 4 [Forward 50 Left 90]]"
-                , exampleCommand "Spiral" "[Repeat 36 [Forward 20 Left 10 Repeat 4 [Forward 10 Left 90]]]"
+                , exampleCommand "Triangle" "[Repeat 3 [Forward 60 Left 120]]"
+                , exampleCommand "Hexagon" "[Repeat 6 [Forward 40 Left 60]]"
                 , exampleCommand "Star" "[Repeat 5 [Forward 100 Right 144]]"
+                , exampleCommand "Spiral" "[Repeat 36 [Forward 20 Left 10 Repeat 4 [Forward 10 Left 90]]]"
+                , exampleCommand "Flower" "[Repeat 12 [Repeat 6 [Forward 30 Right 60], Right 30]]"
                 , exampleCommand "Circle" "[Repeat 36 [Forward 10 Right 10]]"
-                , exampleCommand "Polygon" "[Repeat 6 [Forward 50 Left 60]]"
+                , exampleCommand "Zigzag" "[Repeat 10 [Forward 30 Right 45 Forward 30 Left 90]]"
+                , exampleCommand "Polygon" "[Repeat 8 [Forward 40 Left 45]]"
                 ]
             ]
         ]
