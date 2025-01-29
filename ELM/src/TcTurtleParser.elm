@@ -19,10 +19,19 @@ bracketed p =
 repeatParser : List Instruction -> Parser (Step (List Instruction) (List Instruction))
 repeatParser acc =
     oneOf
-        [ instructionParser
-            |> Parser.map (\instr -> Loop (acc ++ [ instr ]))
+        [ succeed (\instr -> Loop (acc ++ [ instr ]))
+            |= instructionParser
+            |. optionalComma
         , succeed (Done acc)
         ]
+
+optionalComma : Parser ()
+optionalComma =
+    oneOf
+        [ symbol "," |. spaces   -- Allows commas between instructions
+        , spaces                 -- Also allows just spaces (no comma)
+        ]
+
 
 instructionParser : Parser Instruction
 instructionParser =
