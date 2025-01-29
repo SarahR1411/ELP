@@ -138,6 +138,24 @@ expandRepeats instructions =
         )
         instructions
 
+exampleCommand : String -> String -> Html Msg
+exampleCommand title cmd =
+    div [ style "margin-bottom" "10px" ]
+        [ div [ style "font-weight" "600", style "margin-bottom" "4px", style "color" "#2c3e50" ] [ text title ]
+        , button
+            [ onClick (NewInput cmd)
+            , style "background-color" "#e8f4ff"
+            , style "color" "#007BFF"
+            , style "border" "1px solid #007BFF"
+            , style "padding" "8px 12px"
+            , style "border-radius" "6px"
+            , style "cursor" "pointer"
+            , style "width" "100%"
+            , style "text-align" "left"
+            ]
+            [ text cmd ]
+        ]
+
 -- SUBSCRIPTIONS
 subscriptions : Model -> Sub Msg
 subscriptions model =
@@ -246,9 +264,9 @@ view model =
                             ]
                             [ input
                                 [ type_ "range"
-                                , Html.Attributes.min "25"
-                                , Html.Attributes.max "500"
-                                , step "25"
+                                , Html.Attributes.min "10"
+                                , Html.Attributes.max "250"
+                                , step "10"
                                 , value (String.fromInt model.animationSpeed)
                                 , onInput (String.toInt >> Maybe.withDefault 50 >> UpdateSpeed)
                                 , style "flex" "1"
@@ -354,23 +372,6 @@ view model =
             ]
         ]
 
-exampleCommand : String -> String -> Html Msg
-exampleCommand title cmd =
-    div [ style "margin-bottom" "10px" ]
-        [ div [ style "font-weight" "600", style "margin-bottom" "4px", style "color" "#2c3e50" ] [ text title ]
-        , button
-            [ onClick (NewInput cmd)
-            , style "background-color" "#e8f4ff"
-            , style "color" "#007BFF"
-            , style "border" "1px solid #007BFF"
-            , style "padding" "8px 12px"
-            , style "border-radius" "6px"
-            , style "cursor" "pointer"
-            , style "width" "100%"
-            , style "text-align" "left"
-            ]
-            [ text cmd ]
-        ]
 
 -- MAIN ENTRY POINT
 main =
