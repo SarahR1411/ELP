@@ -21,6 +21,9 @@ type alias Model =
     , currentTurtle : Turtle
     , isAnimating : Bool
     , animationSpeed : Int
+    , penColor : String
+    , penWidth : Int
+    , penDown : Bool
     }
 
 type Msg
@@ -30,6 +33,9 @@ type Msg
     | NextStep
     | AnimationTick
     | UpdateSpeed Int
+    | UpdateColor String
+    | UpdateWidth Int
+    | TogglePen
 
 init : Model
 init =
@@ -37,9 +43,12 @@ init =
     , svg = renderSvg []
     , remainingInstructions = []
     , currentLines = []
-    , currentTurtle = { x = 250, y = 250, angle = 0 }
+    , currentTurtle = { x = 250, y = 250, angle = 0, penDown = True, penColor = "#007BFF", penWidth = 2 }
     , isAnimating = False
     , animationSpeed = 50
+    , penColor = "#007BFF"
+    , penWidth = 2
+    , penDown = True
     }
 
 -- UPDATE FUNCTION
@@ -53,7 +62,7 @@ update msg model =
             case run parseTurtleProgram model.input of
                 Ok parsedInstructions ->
                     let
-                        initialTurtle = { x = 250, y = 250, angle = 0 }
+                        initialTurtle = { x = 250, y = 250, angle = 0, penDown = model.penDown, penColor = model.penColor, penWidth = model.penWidth }
                         (finalTurtle, svgElements) = executeInstructions (expandRepeats parsedInstructions) initialTurtle
                     in
                     { model 
@@ -70,7 +79,7 @@ update msg model =
                     { model
                         | remainingInstructions = expandRepeats parsedInstructions
                         , currentLines = []
-                        , currentTurtle = { x = 250, y = 250, angle = 0 }
+                        , currentTurtle = { x = 250, y = 250, angle = 0, penDown = model.penDown, penColor = model.penColor, penWidth = model.penWidth }
                         , svg = renderSvg []
                         , isAnimating = True
                     }
@@ -106,6 +115,15 @@ update msg model =
         UpdateSpeed newSpeed ->
             { model | animationSpeed = newSpeed }
 
+        UpdateColor color ->
+            { model | penColor = color }
+
+        UpdateWidth width ->
+            { model | penWidth = width }
+
+        TogglePen ->
+            { model | penDown = not model.penDown }
+
 -- HELPER FUNCTIONS
 expandRepeats : List Instruction -> List Instruction
 expandRepeats instructions =
@@ -119,24 +137,6 @@ expandRepeats instructions =
                     [other]
         )
         instructions
-
-exampleCommand : String -> String -> Html Msg
-exampleCommand title cmd =
-    div [ style "margin-bottom" "10px" ]
-        [ div [ style "font-weight" "600", style "margin-bottom" "4px", style "color" "#2c3e50" ] [ text title ]
-        , button
-            [ onClick (NewInput cmd)
-            , style "background-color" "#e8f4ff"
-            , style "color" "#007BFF"
-            , style "border" "1px solid #007BFF"
-            , style "padding" "8px 12px"
-            , style "border-radius" "6px"
-            , style "cursor" "pointer"
-            , style "width" "100%"
-            , style "text-align" "left"
-            ]
-            [ text cmd ]
-        ]
 
 -- SUBSCRIPTIONS
 subscriptions : Model -> Sub Msg
@@ -246,9 +246,9 @@ view model =
                             ]
                             [ input
                                 [ type_ "range"
-                                , Html.Attributes.min "10"
-                                , Html.Attributes.max "250"
-                                , step "10"
+                                , Html.Attributes.min "25"
+                                , Html.Attributes.max "500"
+                                , step "25"
                                 , value (String.fromInt model.animationSpeed)
                                 , onInput (String.toInt >> Maybe.withDefault 50 >> UpdateSpeed)
                                 , style "flex" "1"
@@ -261,6 +261,62 @@ view model =
                                 , style "min-width" "80px"
                                 ]
                                 [ text (String.fromInt model.animationSpeed ++ "ms") ]
+                            ]
+                        ]
+                    , div 
+                        [ style "display" "flex"
+                        , style "gap" "10px"
+                        , style "align-items" "center"
+                        ]
+                        [ div 
+                            [ style "display" "flex"
+                            , style "flex-direction" "column"
+                            , style "gap" "8px"
+                            , style "flex" "1"
+                            ]
+                            [ div 
+                                [ style "color" "#6c757d"
+                                , style "font-size" "14px"
+                                , style "font-weight" "600"
+                                ]
+                                [ text "PEN CONTROLS" ]
+                            , div 
+                                [ style "display" "flex"
+                                , style "gap" "10px"
+                                , style "align-items" "center"
+                                ]
+                                [ input
+                                    [ type_ "color"
+                                    , value model.penColor
+                                    , onInput UpdateColor
+                                    , style "height" "40px"
+                                    , style "padding" "3px"
+                                    , style "border" "1px solid #ddd"
+                                    , style "border-radius" "6px"
+                                    ]
+                                    []
+                                , input
+                                    [ type_ "range"
+                                    , Html.Attributes.min "1"
+                                    , Html.Attributes.max "20"
+                                    , value (String.fromInt model.penWidth)
+                                    , onInput (String.toInt >> Maybe.withDefault 2 >> UpdateWidth)
+                                    , style "flex" "1"
+                                    , style "accent-color" model.penColor
+                                    ]
+                                    []
+                                , button
+                                    [ onClick TogglePen
+                                    , style "padding" "10px 20px"
+                                    , style "border" "none"
+                                    , style "border-radius" "6px"
+                                    , style "cursor" "pointer"
+                                    , style "font-weight" "bold"
+                                    , style "background-color" (if model.penDown then "#28a745" else "#dc3545")
+                                    , style "color" "white"
+                                    ]
+                                    [ text (if model.penDown then "Pen is Down" else "Pen is Up") ]
+                                ]
                             ]
                         ]
                     ]
@@ -285,17 +341,35 @@ view model =
                     , style "margin-bottom" "20px"
                     ]
                     [ text "Click any example to use it in the input!" ]
-                , exampleCommand "Square" "[Repeat 4 [Forward 50 Left 90]]"
-                , exampleCommand "Triangle" "[Repeat 3 [Forward 60 Left 120]]"
-                , exampleCommand "Hexagon" "[Repeat 6 [Forward 40 Left 60]]"
-                , exampleCommand "Star" "[Repeat 5 [Forward 100 Right 144]]"
-                , exampleCommand "Spiral" "[Repeat 36 [Forward 20 Left 10 Repeat 4 [Forward 10 Left 90]]]"
-                , exampleCommand "Flower" "[Repeat 12 [Repeat 6 [Forward 30 Right 60], Right 30]]"
-                , exampleCommand "Circle" "[Repeat 36 [Forward 10 Right 10]]"
-                , exampleCommand "Zigzag" "[Repeat 10 [Forward 30 Right 45 Forward 30 Left 90]]"
-                , exampleCommand "Polygon" "[Repeat 8 [Forward 40 Left 45]]"
+                , exampleCommand "Square" "[Repeat 4 [Forward 50, Left 90]]"
+                , exampleCommand "Triangle" "[Repeat 3 [Forward 60, Left 120]]"
+                , exampleCommand "Hexagon" "[Repeat 6 [Forward 40, Left 60]]"
+                , exampleCommand "Star" "[Repeat 5 [Forward 100, Right 144]]"
+                , exampleCommand "Spiral" "[Repeat 36 [Forward 20, Left 10 ,Repeat 4 [Forward 10, Left 90]]]"
+                , exampleCommand "Flower" "[Repeat 12 [Repeat 6 [Forward 30, Right 60], Right 30]]"
+                , exampleCommand "Circle" "[Repeat 36 [Forward 10, Right 10]]"
+                , exampleCommand "Sunburst" "[Repeat 24 [Forward 50, Right 170]]"
+                , exampleCommand "Zigzag" "[Repeat 10 [Forward 30, Right 45, Forward 30, Left 90]]"
                 ]
             ]
+        ]
+
+exampleCommand : String -> String -> Html Msg
+exampleCommand title cmd =
+    div [ style "margin-bottom" "10px" ]
+        [ div [ style "font-weight" "600", style "margin-bottom" "4px", style "color" "#2c3e50" ] [ text title ]
+        , button
+            [ onClick (NewInput cmd)
+            , style "background-color" "#e8f4ff"
+            , style "color" "#007BFF"
+            , style "border" "1px solid #007BFF"
+            , style "padding" "8px 12px"
+            , style "border-radius" "6px"
+            , style "cursor" "pointer"
+            , style "width" "100%"
+            , style "text-align" "left"
+            ]
+            [ text cmd ]
         ]
 
 -- MAIN ENTRY POINT

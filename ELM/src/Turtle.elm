@@ -10,7 +10,13 @@ type Instruction
     | Repeat Int (List Instruction)
 
 type alias Turtle =
-    { x : Float, y : Float, angle : Float }
+    { x : Float
+    , y : Float
+    , angle : Float
+    , penDown : Bool
+    , penColor : String
+    , penWidth : Int
+    }
 
 moveTurtle : Instruction -> Turtle -> (Turtle, List (Svg.Svg msg))
 moveTurtle instruction turtle =
@@ -22,7 +28,10 @@ moveTurtle instruction turtle =
                 newY = turtle.y - toFloat d * sin rad
                 newTurtle = { turtle | x = newX, y = newY }
             in
-            ( newTurtle, [ viewLine turtle newTurtle ] )
+            if turtle.penDown then
+                ( newTurtle, [ viewLine turtle newTurtle turtle.penColor turtle.penWidth ] )
+            else
+                ( newTurtle, [] )
 
         Left d ->
             ( { turtle | angle = turtle.angle + toFloat d }, [] )
@@ -45,14 +54,14 @@ executeInstructions instructions turtle =
         (turtle, [])
         instructions
 
-viewLine : Turtle -> Turtle -> Svg.Svg msg
-viewLine from to =
+viewLine : Turtle -> Turtle -> String -> Int -> Svg.Svg msg
+viewLine from to color width =
     line
         [ x1 (String.fromFloat from.x)
         , y1 (String.fromFloat from.y)
         , x2 (String.fromFloat to.x)
         , y2 (String.fromFloat to.y)
-        , stroke "#007BFF"
-        , strokeWidth "2"
+        , stroke color
+        , strokeWidth (String.fromInt width)
         ]
         []
