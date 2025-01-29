@@ -1,9 +1,8 @@
-module Turtle exposing (Instruction(..), executeInstructions)
+module Turtle exposing (Instruction(..), executeInstructions, Turtle)
 
 import Svg exposing (line)
 import Svg.Attributes exposing (x1, y1, x2, y2, stroke, strokeWidth)
 
--- Turtle Instruction Type
 type Instruction
     = Forward Int
     | Left Int
@@ -31,18 +30,8 @@ moveTurtle instruction turtle =
         Right d ->
             ( { turtle | angle = turtle.angle - toFloat d }, [] )
 
-        Repeat n instructions ->
-            let
-                execute times (state, lines) =
-                    if times == 0 then
-                        ( state, lines )
-                    else
-                        let
-                            (newState, newLines) = executeInstructions instructions state
-                        in
-                        execute (times - 1) (newState, lines ++ newLines)
-            in
-            execute n (turtle, [])
+        Repeat _ _ ->
+            ( turtle, [] )
 
 executeInstructions : List Instruction -> Turtle -> (Turtle, List (Svg.Svg msg))
 executeInstructions instructions turtle =
@@ -56,7 +45,6 @@ executeInstructions instructions turtle =
         (turtle, [])
         instructions
 
-
 viewLine : Turtle -> Turtle -> Svg.Svg msg
 viewLine from to =
     line
@@ -64,7 +52,7 @@ viewLine from to =
         , y1 (String.fromFloat from.y)
         , x2 (String.fromFloat to.x)
         , y2 (String.fromFloat to.y)
-        , stroke "black"
+        , stroke "#007BFF"
         , strokeWidth "2"
         ]
         []
