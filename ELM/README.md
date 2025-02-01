@@ -72,7 +72,7 @@ This project is an interactive Turtle Graphics implementation built with Elm. It
 ## Project Structure
 
 - `src/Main.elm`: The main Elm application file.
-- `src/Parser.elm`: Contains the parser for interpreting Turtle commands.
+- `src/TcTurtleParser.elm`: Contains the parser for interpreting Turtle commands.
 - `src/Turtle.elm`: Handles the logic for executing Turtle instructions and managing the turtle's state.
 - `src/View.elm`: Contains the HTML rendering functions, including the display of the canvas and UI controls.
 - `index.html`: The HTML file that loads the Elm app.
