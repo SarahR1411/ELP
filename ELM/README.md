@@ -16,7 +16,7 @@ This project is an interactive Turtle Graphics implementation built with Elm. It
 2. Clone the repository to your local machine:
 
     ```bash
-    git clone https://github.com/yourusername/turtle-graphics-elm.git
+    git clone https://github.com/SarahR1411/ELP.git
     ```
 
 3. Navigate to the project directory:
