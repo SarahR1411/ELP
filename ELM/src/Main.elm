@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+-- Import necessary modules for browser interaction, HTML generation, SVG handling, and parsing
 import Browser
 import Html exposing (Html, div, input, button, text)
 import Html.Attributes exposing (value, type_, placeholder, style, min, max, step)
@@ -13,51 +14,57 @@ import View exposing (renderSvg)
 import Time
 
 -- MODEL
+-- The Model represents the state of the application
 type alias Model =
-    { input : String
-    , svg : Html Msg
-    , remainingInstructions : List Instruction
-    , currentLines : List (Svg Msg)
-    , currentTurtle : Turtle
-    , isAnimating : Bool
-    , animationSpeed : Int
-    , penColor : String
-    , penWidth : Int
-    , penDown : Bool
+    { input : String                            -- The input string containing turtle commands
+    , svg : Html Msg                            -- The SVG representation of the turtle graphics
+    , remainingInstructions : List Instruction  -- The remaining
+    , currentLines : List (Svg Msg)             -- The current lines drawn by the turtle
+    , currentTurtle : Turtle                    -- The current state of the turtle (position, angle, pen state, etc.) 
+    , isAnimating : Bool                        -- Flag to indicate if the animation is in progress
+    , animationSpeed : Int                      -- The speed of the animation in milliseconds
+    , penColor : String                         -- The color of the pen
+    , penWidth : Int                            -- The width of the pen stroke
+    , penDown : Bool                            -- Flag to indicate if the pen is down (drawing) or up (not drawing)
     }
 
+-- The Msg type defines the possible messages (events) in the app
 type Msg
-    = NewInput String
-    | Draw
-    | StartAnimation
-    | NextStep
-    | AnimationTick
-    | UpdateSpeed Int
-    | UpdateColor String
-    | UpdateWidth Int
-    | TogglePen
+    = NewInput String       -- Update input text
+    | Draw                  -- Draw the turtle graphics instantly
+    | StartAnimation        -- Start the animation
+    | NextStep              -- Move to the next step in the animation
+    | AnimationTick         -- Tick for animation
+    | UpdateSpeed Int       -- Update the animation speed
+    | UpdateColor String    -- Update the pen color
+    | UpdateWidth Int       -- Update the pen width
+    | TogglePen             -- Toggle the pen state
 
+-- Initial Model (default values)
 init : Model
 init =
-    { input = ""
-    , svg = renderSvg []
-    , remainingInstructions = []
-    , currentLines = []
-    , currentTurtle = { x = 250, y = 250, angle = 0, penDown = True, penColor = "#007BFF", penWidth = 2 }
-    , isAnimating = False
-    , animationSpeed = 50
-    , penColor = "#007BFF"
-    , penWidth = 2
-    , penDown = True
+    { input = ""                                                                                            -- Initial empty input
+    , svg = renderSvg []                                                                                    -- Initial empty SVG
+    , remainingInstructions = []                                                                            -- No remaining instructions
+    , currentLines = []                                                                                     -- No lines drawn yet
+    , currentTurtle = { x = 250, y = 250, angle = 0, penDown = True, penColor = "#007BFF", penWidth = 2 }   -- Initial turtle state
+    , isAnimating = False                                                                                   -- Not animating initially
+    , animationSpeed = 50                                                                                   -- Default animation speed (50ms)
+    , penColor = "#007BFF"                                                                                  -- Default pen color (blue)
+    , penWidth = 2                                                                                          -- Default pen width (2 units)
+    , penDown = True                                                                                        -- Pen is down by default
     }
 
 -- UPDATE FUNCTION
+-- The update function handles all messages (events) and updates the model accordingly
 update : Msg -> Model -> Model
 update msg model =
     case msg of
+    -- Handle new input by updating the input field
         NewInput newText ->
             { model | input = newText }
 
+        -- Handle the Draw message by parsing and executing the turtle commands immediately
         Draw ->
             case run parseTurtleProgram model.input of
                 Ok parsedInstructions ->
@@ -66,46 +73,51 @@ update msg model =
                         (finalTurtle, svgElements) = executeInstructions (expandRepeats parsedInstructions) initialTurtle
                     in
                     { model 
-                        | svg = renderSvg svgElements
-                        , currentTurtle = finalTurtle
+                        | svg = renderSvg svgElements   -- Update the SVG rendering
+                        , currentTurtle = finalTurtle   -- Update the turtle state after execution
                     }
 
+                -- If parsing fails, show an error message
                 Err _ ->
                     { model | svg = text "Invalid syntax!" }
 
+        -- Handle the StartAnimation message to begin the animation process
         StartAnimation ->
             case run parseTurtleProgram model.input of
                 Ok parsedInstructions ->
                     { model
-                        | remainingInstructions = expandRepeats parsedInstructions
-                        , currentLines = []
-                        , currentTurtle = { x = 250, y = 250, angle = 0, penDown = model.penDown, penColor = model.penColor, penWidth = model.penWidth }
-                        , svg = renderSvg []
-                        , isAnimating = True
+                        | remainingInstructions = expandRepeats parsedInstructions -- Expand any repeat loops in instructions
+                        , currentLines = []                                       -- Clear the current lines
+                        , currentTurtle = { x = 250, y = 250, angle = 0, penDown = model.penDown, penColor = model.penColor, penWidth = model.penWidth } -- Reset the turtle state
+                        , svg = renderSvg []                                     -- Clear the SVG
+                        , isAnimating = True                                     -- Set the animation flag to true
                     }
 
+                -- If parsing fails, show an error message
                 Err _ ->
                     { model | svg = text "Invalid syntax!" }
 
+        -- Handle the NextStep message to move to the next animation step
         NextStep ->
             if not model.isAnimating then
-                model
+                model -- If not animating, do nothing
             else
                 case model.remainingInstructions of
                     [] ->
-                        { model | isAnimating = False }
+                        { model | isAnimating = False } -- Stop the animation when no instructions are left
 
                     instr :: rest ->
                         let
-                            (newTurtle, newLines) = executeInstructions [instr] model.currentTurtle
+                            (newTurtle, newLines) = executeInstructions [instr] model.currentTurtle -- Execute one instruction
                         in
                         { model
-                            | remainingInstructions = rest
-                            , currentTurtle = newTurtle
-                            , currentLines = model.currentLines ++ newLines
-                            , svg = renderSvg (model.currentLines ++ newLines)
+                            | remainingInstructions = rest  -- Remove the executed instruction from the list
+                            , currentTurtle = newTurtle -- Update the turtle state
+                            , currentLines = model.currentLines ++ newLines -- Add the new lines to the current lines
+                            , svg = renderSvg (model.currentLines ++ newLines) -- Update the SVG with the new lines
                         }
 
+        -- Handle the AnimationTick message to trigger the next animation step at the specified speed
         AnimationTick ->
             if model.isAnimating then
                 update NextStep model
@@ -125,6 +137,7 @@ update msg model =
             { model | penDown = not model.penDown }
 
 -- HELPER FUNCTIONS
+-- The expandRepeats function expands Repeat instructions by repeating the inner instructions
 expandRepeats : List Instruction -> List Instruction
 expandRepeats instructions =
     List.concatMap
@@ -138,6 +151,7 @@ expandRepeats instructions =
         )
         instructions
 
+-- A helper function to generate example commands (buttons that insert predefined turtle commands)
 exampleCommand : String -> String -> Html Msg
 exampleCommand title cmd =
     div [ style "margin-bottom" "10px" ]
@@ -157,6 +171,7 @@ exampleCommand title cmd =
         ]
 
 -- SUBSCRIPTIONS
+-- Subscribe to the animation timer, which triggers at the specified animation speed
 subscriptions : Model -> Sub Msg
 subscriptions model =
     if model.isAnimating then
@@ -165,6 +180,7 @@ subscriptions model =
         Sub.none
 
 -- VIEW FUNCTION
+-- The main view function for rendering the HTML UI
 view : Model -> Html Msg
 view model =
     div 
