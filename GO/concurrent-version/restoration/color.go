@@ -7,7 +7,8 @@ import (
 	"sync"
 )
 
-// We'll use Histogram equalization for color correction
+// HistEqualConcurrent applies histogram equalization to an image using concurrent processing.
+// This enhances the contrast of the image by redistributing pixel intensity values.
 func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
 	width, height := bounds.Max.X, bounds.Max.Y
@@ -16,12 +17,14 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 	// Create histograms for each channel
 	histR, histG, histB := make([]int, 256), make([]int, 256), make([]int, 256)
 
-	// Mutex to synchronize access to histograms
+	// Mutex to synchronize access to shared histogram data
 	var mu sync.Mutex
 	var wg sync.WaitGroup
 
-	// Calculate the histogram for each channel in chunks
+	// Determine chunk size for dividing work among workers
 	chunkHeight := int(math.Ceil(float64(height) / float64(numWorkers)))
+
+	// Function to process a chunk of the image and calculate local histograms
 	processChunk := func(startY, endY int) {
 		defer wg.Done()
 		localHistR, localHistG, localHistB := make([]int, 256), make([]int, 256), make([]int, 256)
@@ -36,7 +39,7 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 			}
 		}
 
-		// Merge local histograms into the global ones
+		// Merge local histograms into the global histograms
 		mu.Lock()
 		for i := 0; i < 256; i++ {
 			histR[i] += localHistR[i]
@@ -46,7 +49,7 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 		mu.Unlock()
 	}
 
-	// Launch workers to process chunks
+	// Launch workers to compute histograms in parallel
 	for startY := 0; startY < height; startY += chunkHeight {
 		endY := startY + chunkHeight
 		if endY > height {
@@ -58,17 +61,17 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 
 	wg.Wait()
 
-	// Calculate the cumulative distribution function (CDF)
+	// Compute cumulative distribution function (CDF) for each color channel
 	cdfR := computeCDF(histR)
 	cdfG := computeCDF(histG)
 	cdfB := computeCDF(histB)
 
-	// Find min and max CDF values for normalization
+	// Find minimum and maximum CDF values for normalization
 	minR, maxR := findMinMax(cdfR)
 	minG, maxG := findMinMax(cdfG)
 	minB, maxB := findMinMax(cdfB)
 
-	// Apply histogram equalization to each pixel in chunks
+	// Function to apply histogram equalization to a chunk of the image
 	wg = sync.WaitGroup{}
 	processEqualizationChunk := func(startY, endY int) {
 		defer wg.Done()
@@ -83,7 +86,7 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 		}
 	}
 
-	// Launch workers to process equalization
+	// Launch workers to apply histogram equalization in parallel
 	for startY := 0; startY < height; startY += chunkHeight {
 		endY := startY + chunkHeight
 		if endY > height {
@@ -97,7 +100,7 @@ func HistEqualConcurrent(img image.Image, numWorkers int) *image.RGBA {
 	return newImg
 }
 
-
+// findMinMax finds the minimum and maximum non-zero values in a CDF for normalization
 func findMinMax(cdf []int) (min, max int) {
 	min, max = -1, -1
 	for _, value := range cdf {
@@ -121,6 +124,7 @@ func computeCDF(hist []int) []int {
 	return cdf
 }
 
+// GetGlobalAverageColor calculates the average color of an image by summing all pixel values
 func GetGlobalAverageColor(img image.Image) color.Color {
 	var rSum, gSum, bSum uint64
 	var count uint64
@@ -128,6 +132,7 @@ func GetGlobalAverageColor(img image.Image) color.Color {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 
+	// Iterate over each pixel to sum up RGB values
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			c := img.At(x, y)
@@ -139,7 +144,7 @@ func GetGlobalAverageColor(img image.Image) color.Color {
 		}
 	}
 
-	// Compute average
+	// Compute the average color
 	return color.RGBA{
 		R: uint8((rSum / count) >> 8),
 		G: uint8((gSum / count) >> 8),

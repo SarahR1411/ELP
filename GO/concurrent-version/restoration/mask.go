@@ -9,6 +9,9 @@ import (
 	"sync"
 )
 
+// CreateMaskByChunks generates a binary mask of the image using parallel processing.
+// It divides the image into chunks and applies a threshold to classify pixels as part of the mask.
+// The result is saved as a JPEG image for debugging.
 func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][]float64, error) {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
@@ -18,10 +21,10 @@ func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][
 	for i := range mask {
 		mask[i] = make([]float64, width)
 	}
-
+	// Define chunk sizes for parallel processing
 	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(float64(numWorkers))))
 	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(float64(numWorkers))))
-	overlap := 2
+	overlap := 2	// Overlap to prevent boundary artifacts
 
 	var wg sync.WaitGroup
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
@@ -31,7 +34,8 @@ func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][
 				r, g, b, _ := img.At(x, y).RGBA()
 				r8, g8, b8 := uint8(r>>8), uint8(g>>8), uint8(b>>8)
 				sum := uint32(r8) + uint32(g8) + uint32(b8)
-
+				
+				// Apply threshold to determine mask value
 				if sum > 427 { 
 					mask[y][x] = 1.0
 				} else {
@@ -41,6 +45,7 @@ func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][
 		}
 	}
 
+	// Launch workers to process image chunks in parallel
 	for yStart := 0; yStart < height; yStart += chunkHeight - overlap {
 		yEnd := yStart + chunkHeight
 		if yEnd > height {
@@ -57,7 +62,7 @@ func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][
 	}
 	wg.Wait()
 
-	// Save mask for debugging
+	// Save the mask as a grayscale image for debugging
 	maskImg := image.NewRGBA(bounds)
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
@@ -81,11 +86,13 @@ func CreateMaskByChunks(img image.Image, outputPath string, numWorkers int) ([][
 	return mask, nil
 }
 
+// FeatherMaskConcurrent smooths the edges of a binary mask using an exponential decay function.
+// The function runs in parallel, ensuring efficient feathering.
 func FeatherMaskConcurrent(mask [][]float64, radius int, edgeMask [][]float64, numWorkers int) [][]float64 {
 	height := len(mask)
 	width := len(mask[0])
 
-	// Output mask
+	// Output mask with feathering applied
 	featheredMask := make([][]float64, height)
 	for i := range featheredMask {
 		featheredMask[i] = make([]float64, width)
@@ -94,7 +101,7 @@ func FeatherMaskConcurrent(mask [][]float64, radius int, edgeMask [][]float64, n
 	var wg sync.WaitGroup
 	rowsPerWorker := height / numWorkers
 
-	// Feathering worker
+	// Worker function to feather mask in parallel
 	processChunk := func(startRow, endRow int) {
 		defer wg.Done()
 		for y := startRow; y < endRow; y++ {
@@ -117,6 +124,7 @@ func FeatherMaskConcurrent(mask [][]float64, radius int, edgeMask [][]float64, n
 		}
 	}
 
+	// Launch workers to process feathering
 	for i := 0; i < numWorkers; i++ {
 		startRow := i * rowsPerWorker
 		endRow := startRow + rowsPerWorker

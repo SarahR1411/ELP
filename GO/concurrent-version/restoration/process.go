@@ -7,7 +7,7 @@ import (
 	"sync"
 )
 
-// Get the median color of surrounding pixels for inpainting
+// GetBlendedColorWithEdges computes a blended color by averaging nearby pixels weighted by distance and edge strength.
 func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float64, x, y int) color.Color {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
@@ -15,6 +15,7 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 	var sumR, sumG, sumB, weightSum float64
 	maxRadius := 5
 	adjustedRadius := maxRadius
+	// Adjust radius for boundary conditions
 	if x < maxRadius {
 		adjustedRadius = x
 	} else if x >= width-maxRadius {
@@ -26,6 +27,7 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 		adjustedRadius = min(adjustedRadius, height - y - 1)
 	}
 
+	// Compute weighted average of neighboring pixels
 	for dy := -adjustedRadius; dy <= adjustedRadius; dy++ {
 		for dx := -adjustedRadius; dx <= adjustedRadius; dx++ {
 			nx, ny := x+dx, y+dy
@@ -43,11 +45,12 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 		}
 	}
 	
-
+	// Avoid division by zero
 	if weightSum == 0 {
 		return img.At(x, y) // Use the original image color directly 
 	}
 
+	// Compute final blended color
 	return color.RGBA{
 		R: uint8((sumR / weightSum) / 256),
 		G: uint8((sumG / weightSum) / 256),
@@ -56,21 +59,21 @@ func GetBlendedColorWithEdges(img image.Image, mask [][]float64, edges [][]float
 	}
 }
 
-// InpaintByChunks processes the image by dividing it into chunks of pixels and applying inpainting.
+// InpaintByChunks performs image inpainting in parallel using chunk processing.
 func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64, numWorkers int) *image.RGBA {
 	bounds := img.Bounds()
 	width, height := bounds.Dx(), bounds.Dy()
 	output := image.NewRGBA(bounds)
 
-	
+	// Compute chunk size for dividing the image into sections
 	chunkHeight := int(math.Ceil(float64(height) / math.Sqrt(2*float64(numWorkers))))
 	chunkWidth := int(math.Ceil(float64(width) / math.Sqrt(2*float64(numWorkers))))
-
+	overlap := 5 // Pixels overlapping between chunks for seamless blending
+	
 	var wg sync.WaitGroup
-
-	// Worker function for processing a chunk of the image
-	overlap := 5 // Number of pixels to overlap
 	var mu sync.Mutex
+	
+	// Worker function for processing a chunk of the image
 	processChunk := func(xStart, xEnd, yStart, yEnd int) {
     defer wg.Done()
     for y := max(0, yStart-overlap); y < min(yEnd+overlap, height); y++ {
@@ -87,6 +90,7 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64, numWo
     }
 }
 
+// Divide the image into chunks and process each in a goroutine
 	for yStart := 0; yStart < height; yStart += chunkHeight - overlap {
 		for xStart := 0; xStart < width; xStart += chunkWidth - overlap {
 			xEnd := min(xStart + chunkWidth, width)
@@ -100,9 +104,10 @@ func InpaintByChunks(img image.Image, mask [][]float64, edges [][]float64, numWo
 
 
 	wg.Wait()
-	return SmoothImageConcurrent(output, numWorkers)
+	return SmoothImageConcurrent(output, numWorkers) // Apply final smoothing step
 }
 
+// Utility function to return the maximum of two integers.
 func max(a, b int) int {
     if a > b {
         return a
@@ -110,6 +115,7 @@ func max(a, b int) int {
     return b
 }
 
+// Utility function to return the minimum of two integers.
 func min(a, b int) int {
     if a < b {
         return a
